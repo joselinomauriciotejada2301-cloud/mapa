@@ -4,7 +4,7 @@ import os
 
 app = Flask(__name__)
 
-EXCEL_PATH = "Datosmapa.xlsx"   # en Render debe estar en la raíz
+EXCEL_PATH = "Datosmapa.xlsx"
 
 def cargar_datos():
     df = pd.read_excel(EXCEL_PATH)
@@ -43,6 +43,8 @@ def datos():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
+
 
 
 

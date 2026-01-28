@@ -17,7 +17,7 @@ body{margin:0;font-family:Arial;}
     border-radius:8px;
     box-shadow:2px 2px 6px #999;
     font-size:13px;
-    width:280px;
+    width:300px;
 }
 
 .panel select, .panel input, .panel button{
@@ -28,7 +28,7 @@ body{margin:0;font-family:Arial;}
 .stats{
     margin-top:8px;
     font-size:12px;
-    max-height:180px;
+    max-height:220px;
     overflow:auto;
     display:none;
 }
@@ -45,7 +45,7 @@ body{margin:0;font-family:Arial;}
 
 <hr>
 
-<b>🎛️ Filtros (selección múltiple)</b>
+<b>🎛️ Filtros (Ctrl para múltiple)</b>
 
 <select id="f_estado" multiple onchange="aplicarFiltros()"></select>
 <select id="f_actividad" multiple onchange="aplicarFiltros()"></select>
@@ -58,8 +58,8 @@ body{margin:0;font-family:Arial;}
 <div id="contador"></div>
 
 <div class="stats" id="panelStats">
-<b>📊 Conteo por actividad</b>
 <div id="stats_actividad"></div>
+<div id="stats_geo"></div>
 <div id="stats_total"></div>
 </div>
 
@@ -72,50 +72,24 @@ let map;
 let datos = [];
 let marcadores = [];
 
-// ===== COLORES POR CÓDIGO DE ACTIVIDAD =====
+// ===== COLORES POR ACTIVIDAD =====
 function colorActividad(act){
-    let codigo = act.substring(0,3);
-
+    let c = act.substring(0,3);
     const colores = {
-      "030":"#8e44ad",
-      "034":"#9b59b6",
-      "040":"#2980b9",
-      "050":"orange",
-      "051":"#f39c12",
-      "052":"#d35400",
-      "053":"#e67e22",
-      "056":"blue",
-      "070":"#16a085",
-      "071":"red",
-      "074":"#27ae60",
-      "078":"#2ecc71",
-      "101":"#1abc9c",
-      "102":"green",
-      "106":"darkgreen",
-      "107":"violet",
-      "112":"#7f8c8d",
-      "114":"#95a5a6",
-      "115":"#34495e",
-      "190":"#c0392b",
-      "300":"#6c3483",
-      "320":"brown",
-      "400":"#f1c40f",
-      "401":"#f39c12",
-      "600":"#2980b9",
-      "601":"#1f618d",
-      "607":"#17a589",
-      "613":"#48c9b0",
-      "618":"#45b39d",
-      "975":"#922b21",
-      "982":"#641e16",
-      "983":"#7b241c",
+      "030":"#8e44ad","034":"#9b59b6","040":"#2980b9","050":"orange",
+      "051":"#f39c12","052":"#d35400","053":"#e67e22","056":"blue",
+      "070":"#16a085","071":"red","074":"#27ae60","078":"#2ecc71",
+      "101":"#1abc9c","102":"green","106":"darkgreen","107":"violet",
+      "112":"#7f8c8d","114":"#95a5a6","115":"#34495e","190":"#c0392b",
+      "300":"#6c3483","320":"brown","400":"#f1c40f","401":"#f39c12",
+      "600":"#2980b9","601":"#1f618d","607":"#17a589","613":"#48c9b0",
+      "618":"#45b39d","975":"#922b21","982":"#641e16","983":"#7b241c",
       "984":"#943126"
     };
-
-    return colores[codigo] || "black";
+    return colores[c] || "black";
 }
 
-// ===== INICIAR MAPA =====
+// ===== MAPA =====
 function initMap(){
     map = new google.maps.Map(document.getElementById("map"), {
         center:{lat:-12.05, lng:-77.05},
@@ -123,49 +97,41 @@ function initMap(){
     });
 
     fetch("/datos")
-    .then(res => res.json())
-    .then(data => {
-        datos = data;
+    .then(r=>r.json())
+    .then(data=>{
+        datos=data;
         cargarFiltros();
         dibujarMarcadores(datos);
         document.getElementById("contador").innerHTML =
-          "Registros totales: <b>"+datos.length+"</b>";
+          "Total registros: <b>"+datos.length+"</b>";
     });
 }
 
-// ===== DIBUJAR MARCADORES =====
+// ===== MARCADORES =====
 function dibujarMarcadores(lista){
-
-    marcadores.forEach(m => m.setMap(null));
+    marcadores.forEach(m=>m.setMap(null));
     marcadores=[];
 
-    lista.forEach(d => {
-        let marker = new google.maps.Marker({
-            position:{lat:d.lat, lng:d.lng},
+    lista.forEach(d=>{
+        let marker=new google.maps.Marker({
+            position:{lat:d.lat,lng:d.lng},
             map:map,
-            title:d.razon,
             icon:{
-              path: google.maps.SymbolPath.CIRCLE,
+              path:google.maps.SymbolPath.CIRCLE,
               scale:5,
-              fillColor: colorActividad(d.actividad),
+              fillColor:colorActividad(d.actividad),
               fillOpacity:1,
               strokeWeight:1
             }
         });
-
-        let info = new google.maps.InfoWindow({
-            content:`<b>${d.razon}</b><br>${d.actividad}<br>${d.distrito}`
-        });
-
-        marker.addListener("click", ()=>info.open(map,marker));
         marcadores.push(marker);
     });
 
     document.getElementById("contador").innerHTML =
-      "Registros visibles: <b>"+lista.length+"</b>";
+      "Total: <b>"+lista.length+"</b>";
 }
 
-// ===== CARGAR FILTROS =====
+// ===== CARGA FILTROS =====
 function cargarFiltros(){
     llenar("f_estado","estado");
     llenar("f_actividad","actividad");
@@ -174,23 +140,22 @@ function cargarFiltros(){
 }
 
 function llenar(id,campo){
-    let select=document.getElementById(id);
-    select.innerHTML="";
-    let valores=[...new Set(datos.map(d=>d[campo]))].sort();
-    valores.forEach(v=>{
+    let sel=document.getElementById(id);
+    sel.innerHTML="";
+    let vals=[...new Set(datos.map(d=>d[campo]))].sort();
+    vals.forEach(v=>{
         if(v){
             let op=document.createElement("option");
-            op.value=v;
-            op.text=v;
-            select.add(op);
+            op.value=v; op.text=v;
+            sel.add(op);
         }
     });
 }
 
-// ===== OBTENER MULTISELECT =====
+// ===== MULTI SELECT =====
 function valoresSeleccionados(id){
-    let sel=document.getElementById(id);
-    return Array.from(sel.selectedOptions).map(o=>o.value);
+    return Array.from(document.getElementById(id).selectedOptions)
+                .map(o=>o.value);
 }
 
 // ===== APLICAR FILTROS =====
@@ -209,7 +174,7 @@ function aplicarFiltros(){
     );
 
     dibujarMarcadores(filtrados);
-    actualizarConteoActividad(filtrados);
+    actualizarEstadisticas(filtrados, prov);
 
     if(filtrados.length>0){
         map.setCenter({lat:filtrados[0].lat, lng:filtrados[0].lng});
@@ -217,45 +182,66 @@ function aplicarFiltros(){
     }
 }
 
-// ===== BUSCADOR =====
-function buscar(){
-    let texto=document.getElementById("buscador").value.toLowerCase();
-    let encontrado = datos.find(d =>
-        d.codigo.toLowerCase().includes(texto) ||
-        d.razon.toLowerCase().includes(texto)
-    );
-    if(encontrado){
-        map.setCenter({lat:encontrado.lat, lng:encontrado.lng});
-        map.setZoom(15);
-    } else alert("No encontrado");
-}
-
-// ===== CONTAR POR ACTIVIDAD =====
-function actualizarConteoActividad(lista){
+// ===== ESTADISTICAS DINÁMICAS =====
+function actualizarEstadisticas(lista, provinciasSeleccionadas){
 
     let panel=document.getElementById("panelStats");
 
-    if(lista.length==datos.length){
+    // Si no hay filtros → ocultar panel
+    if(lista.length === datos.length){
         panel.style.display="none";
         return;
     }
-
     panel.style.display="block";
 
-    let conteo={};
+    // --- Conteo por actividad ---
+    let porActividad={};
     lista.forEach(d=>{
-        let cod=d.actividad.substring(0,3);
-        conteo[cod]=(conteo[cod]||0)+1;
+        let c=d.actividad.substring(0,3);
+        porActividad[c]=(porActividad[c]||0)+1;
     });
 
-    let html="";
-    for(let c in conteo){
-        html+=`${c}: ${conteo[c]}<br>`;
+    let htmlAct="<b>📌 Por Actividad</b><br>";
+    for(let a in porActividad){
+        htmlAct+=`${a}: ${porActividad[a]}<br>`;
+    }
+    document.getElementById("stats_actividad").innerHTML=htmlAct;
+
+    // --- Conteo geográfico ---
+    let porGeo={};
+    if(provinciasSeleccionadas.length>0){
+        // si filtró provincia → contar distritos
+        lista.forEach(d=>{
+            porGeo[d.distrito]=(porGeo[d.distrito]||0)+1;
+        });
+        let html="<br><b>🏘️ Por Distrito</b><br>";
+        for(let g in porGeo){ html+=`${g}: ${porGeo[g]}<br>`; }
+        document.getElementById("stats_geo").innerHTML=html;
+    } else {
+        // si no filtró provincia → contar provincias
+        lista.forEach(d=>{
+            porGeo[d.provincia]=(porGeo[d.provincia]||0)+1;
+        });
+        let html="<br><b>🗺️ Por Provincia</b><br>";
+        for(let g in porGeo){ html+=`${g}: ${porGeo[g]}<br>`; }
+        document.getElementById("stats_geo").innerHTML=html;
     }
 
-    document.getElementById("stats_actividad").innerHTML=html;
-    document.getElementById("stats_total").innerHTML=
-        "<b>Total: "+lista.length+"</b>";
+    document.getElementById("stats_total").innerHTML =
+        "<br><b>Total general: "+lista.length+"</b>";
+}
+
+// ===== BUSCADOR =====
+function buscar(){
+    let t=document.getElementById("buscador").value.toLowerCase();
+    let e=datos.find(d =>
+        d.codigo.toLowerCase().includes(t) ||
+        d.razon.toLowerCase().includes(t)
+    );
+    if(e){
+        map.setCenter({lat:e.lat,lng:e.lng});
+        map.setZoom(15);
+    } else alert("No encontrado");
 }
 
 // ===== RESET =====
@@ -264,15 +250,15 @@ function resetFiltros(){
     dibujarMarcadores(datos);
     document.getElementById("panelStats").style.display="none";
     document.getElementById("contador").innerHTML =
-      "Registros totales: <b>"+datos.length+"</b>";
+      "Total registros: <b>"+datos.length+"</b>";
 }
-
 </script>
 
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb1xIG3Iks&callback=initMap" async defer></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=TU_API_KEY_AQUI&callback=initMap" async defer></script>
 
 </body>
 </html>
+
 
 
 

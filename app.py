@@ -4,7 +4,7 @@ import pandas as pd
 app = Flask(__name__)
 
 # ===== CONFIGURACIÓN =====
-EXCEL_PATH = r"F:\JLINO\Proyecto MAPA\Datosmapa.xlsx"
+EXCEL_PATH = "Datosmapa.xlsx"
 
 # ===== CARGA DE DATOS =====
 def cargar_datos():
@@ -49,3 +49,4 @@ if __name__ == "__main__":
     print("✅ Servidor iniciado")
     print("🌎 Abre en tu navegador: http://127.0.0.1:5000")
     app.run(debug=True)
+

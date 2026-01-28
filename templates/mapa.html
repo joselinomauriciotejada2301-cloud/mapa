@@ -2,183 +2,160 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Mapa Osinergmin</title>
-
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb1xIG3IksI"></script>
-
+<title>Mapa OSINERGMIN</title>
 <style>
-body { font-family: Arial; margin:0; }
-#map { height: 90vh; width: 100%; }
-#panel {
-  padding:10px;
-  background:#f2f2f2;
-}
-select,input {
-  margin:3px;
-  padding:5px;
-}
-#estadisticas {
-  padding:8px;
-  font-size:14px;
-}
+body {font-family: Arial; margin:0;}
+#map {height: 90vh;}
+.panel {padding:10px; background:#f5f5f5;}
+select,input {margin:3px;}
+#stats {margin-top:5px;font-weight:bold;}
+.legend {background:white;padding:8px;font-size:13px;}
+.legend div{margin-bottom:4px;}
+.legend span{display:inline-block;width:12px;height:12px;margin-right:6px;}
 </style>
 </head>
 
 <body>
 
-<div id="panel">
-  🔎 Buscar: <input type="text" id="busqueda" placeholder="Código o Razón Social">
-
-  Actividad:
-  <select id="filtroActividad"></select>
-
-  Estado:
-  <select id="filtroEstado"></select>
-
-  Provincia:
-  <select id="filtroProvincia"></select>
-
-  Distrito:
-  <select id="filtroDistrito"></select>
-
-  <span id="contador"></span>
+<div class="panel">
+<input id="buscador" placeholder="Buscar razón o código">
+<select id="f_estado"><option value="">Estado</option></select>
+<select id="f_actividad"><option value="">Actividad</option></select>
+<select id="f_provincia"><option value="">Provincia</option></select>
+<select id="f_distrito"><option value="">Distrito</option></select>
+<div id="stats"></div>
 </div>
 
 <div id="map"></div>
 
-<div id="estadisticas"></div>
+<script src="https://maps.googleapis.com/maps/api/js?key=TU_API_KEY_AQUI"></script>
 
 <script>
 let map;
-let markers = [];
+let marcadores = [];
 let datos = [];
 
 const colores = {};
-const paleta = ["red","blue","green","orange","purple","pink","yellow","brown","gray","black"];
+const palette = [
+"#e41a1c","#377eb8","#4daf4a","#984ea3","#ff7f00",
+"#ffff33","#a65628","#f781bf","#999999","#66c2a5",
+"#fc8d62","#8da0cb","#e78ac3","#a6d854","#ffd92f"
+];
 
-function asignarColor(act){
-  if(!colores[act]){
-    colores[act] = paleta[Object.keys(colores).length % paleta.length];
-  }
-  return colores[act];
+function colorActividad(act){
+ if(!colores[act]){
+   colores[act] = palette[Object.keys(colores).length % palette.length];
+ }
+ return colores[act];
 }
 
 function initMap(){
-  map = new google.maps.Map(document.getElementById("map"), {
-    center:{lat:-12.1,lng:-77.05},
-    zoom:10
-  });
+ map = new google.maps.Map(document.getElementById('map'),{
+   center:{lat:-12.05,lng:-77.04}, zoom:11
+ });
 
-  fetch("/datos")
-    .then(r=>r.json())
-    .then(r=>{
-      datos = r;
-      cargarFiltros();
-      mostrarMarcadores();
-      generarLeyenda();
-      generarEstadisticas();
-    });
+ fetch("/datos")
+ .then(r=>r.json())
+ .then(json=>{
+   datos = json;
+   cargarFiltros();
+   crearMarcadores();
+   aplicarFiltros();
+   crearLeyenda();
+ });
+}
+
+function crearMarcadores(){
+ datos.forEach(d=>{
+   let m = new google.maps.Marker({
+     position:{lat:parseFloat(d.lat), lng:parseFloat(d.lng)},
+     map:map,
+     icon:{
+       path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+       scale:5,
+       fillColor: colorActividad(d.actividad),
+       fillOpacity:1,
+       strokeWeight:1
+     }
+   });
+
+   let info = `
+   <b>${d.razon}</b><br>
+   <b>Código:</b> ${d.codigo}<br>
+   <b>Registro:</b> ${d.registro}<br>
+   <b>Actividad:</b> ${d.actividad}<br>
+   <b>Capacidad:</b> ${d.capacidad}<br>
+   <b>Última fiscalización:</b> ${d.fiscalizacion}<br>
+   <b>Estado:</b> ${d.estado}
+   `;
+   let iw = new google.maps.InfoWindow({content:info});
+   m.addListener("click",()=>iw.open(map,m));
+
+   m.datos = d;
+   marcadores.push(m);
+ });
 }
 
 function cargarFiltros(){
-  llenarSelect("filtroActividad", [...new Set(datos.map(d=>d.actividad))]);
-  llenarSelect("filtroEstado", [...new Set(datos.map(d=>d.estado))]);
-  llenarSelect("filtroProvincia", [...new Set(datos.map(d=>d.provincia))]);
-  llenarSelect("filtroDistrito", [...new Set(datos.map(d=>d.distrito))]);
-
-  document.querySelectorAll("select,input").forEach(e=>{
-    e.addEventListener("change", aplicarFiltros);
-    e.addEventListener("keyup", aplicarFiltros);
-  });
+ llenar("f_estado","estado");
+ llenar("f_actividad","actividad");
+ llenar("f_provincia","provincia");
+ llenar("f_distrito","distrito");
 }
 
-function llenarSelect(id, lista){
-  const sel = document.getElementById(id);
-  sel.innerHTML = '<option value="">Todos</option>';
-  lista.sort().forEach(v=>{
-    if(v) sel.innerHTML += `<option>${v}</option>`;
-  });
+function llenar(id,campo){
+ let sel = document.getElementById(id);
+ let vals = [...new Set(datos.map(d=>d[campo]).filter(v=>v))].sort();
+ vals.forEach(v=>{
+   let o=document.createElement("option");
+   o.value=v; o.text=v; sel.appendChild(o);
+ });
+ sel.onchange = aplicarFiltros;
 }
 
-function mostrarMarcadores(filtrados=datos){
-  markers.forEach(m=>m.setMap(null));
-  markers=[];
-
-  filtrados.forEach(d=>{
-    const marker = new google.maps.Marker({
-      position:{lat:parseFloat(d.lat), lng:parseFloat(d.lng)},
-      map:map,
-      icon:{
-        path:google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-        scale:5,
-        fillColor:asignarColor(d.actividad),
-        fillOpacity:1,
-        strokeWeight:1
-      }
-    });
-
-    const info = `
-      <b>${d.razon}</b><br>
-      Código: ${d.codigo}<br>
-      Registro: ${d.registro}<br>
-      Actividad: ${d.actividad}<br>
-      Capacidad: ${d.capacidad}<br>
-      Última Fiscalización: ${d.fiscalizacion}<br>
-      Estado: ${d.estado}
-    `;
-
-    const infowindow = new google.maps.InfoWindow({content:info});
-    marker.addListener("click",()=>infowindow.open(map,marker));
-    markers.push(marker);
-  });
-
-  document.getElementById("contador").innerHTML =
-   "Total: " + filtrados.length;
-}
+document.getElementById("buscador").addEventListener("input", aplicarFiltros);
 
 function aplicarFiltros(){
-  const act = document.getElementById("filtroActividad").value;
-  const est = document.getElementById("filtroEstado").value;
-  const prov = document.getElementById("filtroProvincia").value;
-  const dist = document.getElementById("filtroDistrito").value;
-  const bus = document.getElementById("busqueda").value.toLowerCase();
+ let e = f_estado.value;
+ let a = f_actividad.value;
+ let p = f_provincia.value;
+ let d = f_distrito.value;
+ let texto = buscador.value.toLowerCase();
 
-  const filtrados = datos.filter(d=>{
-    return (!act || d.actividad==act) &&
-           (!est || d.estado==est) &&
-           (!prov || d.provincia==prov) &&
-           (!dist || d.distrito==dist) &&
-           (!bus || d.codigo.toLowerCase().includes(bus) || d.razon.toLowerCase().includes(bus));
-  });
+ let contador = 0;
 
-  mostrarMarcadores(filtrados);
-  generarEstadisticas(filtrados);
+ marcadores.forEach(m=>{
+   let x = m.datos;
+   let visible = true;
+
+   if(e && x.estado!=e) visible=false;
+   if(a && x.actividad!=a) visible=false;
+   if(p && x.provincia!=p) visible=false;
+   if(d && x.distrito!=d) visible=false;
+   if(texto && !(x.razon||"").toLowerCase().includes(texto)
+            && !(x.codigo||"").toLowerCase().includes(texto)) visible=false;
+
+   m.setVisible(visible);
+   if(visible) contador++;
+ });
+
+ stats.innerHTML = "Total visibles: "+contador;
 }
 
-function generarLeyenda(){
-  let html="<b>Leyenda por actividad</b><br>";
-  for(let act in colores){
-    html += `<span style="color:${colores[act]}">⬤</span> ${act}<br>`;
-  }
-  document.getElementById("estadisticas").innerHTML = html;
-}
-
-function generarEstadisticas(filtrados=datos){
-  const conteoProv = {};
-  filtrados.forEach(d=>{
-    conteoProv[d.provincia] = (conteoProv[d.provincia]||0)+1;
-  });
-
-  let html = document.getElementById("estadisticas").innerHTML;
-  html += "<hr><b>Estadísticas por Provincia</b><br>";
-  for(let p in conteoProv){
-    html += `${p}: ${conteoProv[p]}<br>`;
-  }
-  document.getElementById("estadisticas").innerHTML = html;
+function crearLeyenda(){
+ let legend = document.createElement("div");
+ legend.className="legend";
+ legend.innerHTML="<b>Leyenda actividades</b><br>";
+ Object.keys(colores).forEach(a=>{
+   let div=document.createElement("div");
+   div.innerHTML = `<span style="background:${colores[a]}"></span>${a}`;
+   legend.appendChild(div);
+ });
+ map.controls[google.maps.ControlPosition.RIGHT_BOTTOM].push(legend);
 }
 
 window.onload = initMap;
 </script>
-
 </body>
 </html>
+

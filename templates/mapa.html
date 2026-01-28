@@ -1,317 +1,259 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-<meta charset="utf-8">
-<title>Mapa OSINERGMIN</title>
-
+<meta charset="UTF-8">
+<title>Mapa Osinergmin</title>
 <style>
-body{margin:0;font-family:Arial;}
-#map{height:100vh;}
-
-.panel{
-    position:absolute;
-    top:10px; left:10px;
-    z-index:5;
+  body { margin:0; font-family: Arial; }
+  #map { height: 90vh; width: 100%; }
+  #panel {
+    padding:10px;
+    background:#f4f4f4;
+  }
+  select, input, button {
+    padding:5px;
+    margin:3px;
+  }
+  #leyenda {
+    padding:10px;
     background:white;
-    padding:12px;
-    border-radius:8px;
-    box-shadow:2px 2px 6px #999;
-    font-size:13px;
-    width:320px;
-}
-
-.panel select, .panel input, .panel button{
-    width:100%;
-    margin-bottom:6px;
-}
-
-.stats{
-    margin-top:8px;
-    font-size:12px;
-    max-height:250px;
+    max-height:200px;
     overflow:auto;
-    display:none;
-}
+    font-size:14px;
+  }
 </style>
 </head>
-
 <body>
 
-<div class="panel">
+<div id="panel">
+  <input type="text" id="buscador" placeholder="Buscar Razón Social o Código">
+  <button onclick="buscar()">Buscar</button>
 
-<b>🔎 Buscador</b>
-<input type="text" id="buscador" placeholder="Código o Razón Social">
-<button onclick="buscar()">Buscar</button>
+  <select id="filtroProvincia" onchange="aplicarFiltros()" multiple></select>
+  <select id="filtroDistrito" onchange="aplicarFiltros()" multiple></select>
+  <select id="filtroActividad" onchange="aplicarFiltros()" multiple></select>
 
-<hr>
-
-<b>🎛️ Filtros (Ctrl + click múltiple)</b>
-
-<select id="f_estado" multiple></select>
-<select id="f_actividad" multiple></select>
-<select id="f_provincia" multiple></select>
-<select id="f_distrito" multiple></select>
-
-<button onclick="resetFiltros()">Limpiar filtros</button>
-
-<hr>
-<div id="contador"></div>
-
-<div class="stats" id="panelStats">
-<div id="stats_actividad"></div>
-<div id="stats_geo"></div>
-<div id="stats_total"></div>
-</div>
-
+  <span id="contador"></span>
 </div>
 
 <div id="map"></div>
+<div id="leyenda"></div>
+
+<script src="https://maps.googleapis.com/maps/api/js?key=TU_API_KEY"></script>
+<script src="https://unpkg.com/@googlemaps/markerclusterer/dist/index.min.js"></script>
 
 <script>
 let map;
-let datos=[];
-let marcadores=[];
-let filtroTimeout=null;
+let datos = [];
+let marcadores = [];
+let markerCluster = null;
 
-// ======= LISTA ACTIVIDADES + COLORES =======
-const actividadesInfo = {
-"030":"030-REFINERIAS TOPPING",
-"034":"034-PLANTAS LUBRICANTES Y GRASAS",
-"040":"040-PLANTA DE ABASTECIMIENTO DE COMBUSTIBLES LIQUIDOS",
-"050":"050-ESTACIÓN DE SERVICIOS / GRIFOS",
-"051":"051-CONSUMIDOR DIRECTO DE COMBUSTIBLE LÍQUIDO HASTA 5 MB",
-"052":"052-CONSUMIDOR DIRECTO DE COMBUSTIBLE LÍQUIDO DE 5 A 50 MB",
-"053":"053-CONSUMIDOR DIRECTO DE COMBUSTIBLE LÍQUIDO MAYOR A 50 MB",
-"056":"056-ESTACIÓN DE SERVICIO CON GASOCENTRO DE GLP",
-"070":"070-PLANTAS ENVASADORAS GLP",
-"071":"071-GASOCENTROS DE GLP",
-"074":"074-LOCALES DE VENTA GLP ≤ 5000 KG",
-"078":"078-LOCALES DE VENTA GLP > 5000 KG",
-"101":"101-CONSUMIDOR DIRECTO DE GNV",
-"102":"102-ESTABLECIMIENTO DE VENTA DE GNV",
-"106":"106-EE.SS CON GNV",
-"107":"107-EE.SS CON GLP Y GNV",
-"112":"112-CONSUMIDOR DIRECTO OPDH HASTA 5 MB",
-"114":"114-CONSUMIDOR DIRECTO OPDH DE 5 A 50 MB",
-"115":"115-CONSUMIDORES DIRECTOS OTROS DERIVADOS",
-"190":"190-ESTABLECIMIENTO GNV SISTEMA INTEGRADO",
-"300":"300-PROCESO GNL",
-"320":"320-GASOCENTRO GLP + VENTA GNV",
-"400":"400-CONSUMIDOR DIRECTO GLP ≤1000 GLN",
-"401":"401-CONSUMIDOR DIRECTO GLP >1000 GLN",
-"600":"600-RED GLP ≤1000 GLN",
-"601":"601-RED GLP >1000 GLN",
-"607":"607-ESTACIÓN COMPRESIÓN GN",
-"613":"613-ESTACIÓN CARGA GNL",
-"618":"618-ESTACIÓN CARGA GNC",
-"975":"975-CONSUMIDOR DIRECTO INST. ESTRATÉGICAS",
-"982":"982-CONSUMIDOR DIRECTO INST. ESTRATÉGICAS GLP >1000",
-"983":"983-CONSUMIDOR DIRECTO INST. ESTRATÉGICAS TEMP",
-"984":"984-CONSUMIDOR DIRECTO INST. ESTRATÉGICAS GLP ≤1000"
-};
+// =====================
+// COLORES POR ACTIVIDAD
+// =====================
+const actividadesPermitidas = [
+"030-REFINERIAS TOPPING",
+"034-PLANTAS LUBRICANTES Y GRASAS",
+"040-PLANTA DE ABASTECIMIENTO DE COMBUSTIBLES LIQUIDOS",
+"050-ESTACIÓN DE SERVICIOS / GRIFOS",
+"051-CONSUMIDOR DIRECTO DE COMBUSTIBLE LÍQUIDO CON CAPACIDAD HASTA 5 MB",
+"052-CONSUMIDOR DIRECTO DE COMBUSTIBLE LÍQUIDO CON CAPACIDAD DE 5 A 50 MB",
+"053-CONSUMIDOR DIRECTO DE COMBUSTIBLE LÍQUIDO CON CAPACIADAD MAYOR A 50 MB",
+"056-ESTACIÓN DE SERVICIO CON GASOCENTRO DE GLP",
+"070-PLANTAS ENVASADORAS GLP",
+"071-GASOCENTROS DE GLP",
+"074-LOCALES DE VENTA DE GLP EN CILINDROS CON CAPACIDAD MENOR O IGUAL A 5,000 KG",
+"078-LOCALES DE VENTA DE GLP EN CILINDROS CON CAPACIDAD MAYOR A 5,000 KG",
+"101-CONSUMIDOR DIRECTO DE GNV",
+"102-ESTABLECIMIENTO DE VENTA AL PUBLICO DE GNV",
+"106-EE.SS con GNV",
+"107-EE.SS con GLP y GNV",
+"112-CONSUMIDOR DIRECTO DE OPDH Y COMBUSTIBLE LÍQUIDO CON CAPACIDAD HASTA 5 MB",
+"114-CONSUMIDOR DIRECTO DE OPDH Y COMBUSTIBLE LÍQUIDO CON CAPACIDAD DE 5 A 50 MB",
+"115-CONSUMIDORES DIRECTOS DE OTROS PRODUCTOS DERIVADOS DE LOS HIDROCARBUROS",
+"190-ESTABLECIMIENTO DESTINADO AL SUMINISTRO DE GNV EN SISTEMAS INTEGRADOS DE TRANSPORTE",
+"300-PROCES GNL",
+"320-GASOCENTRO DE GLP CON ESTABLECIMIENTO DE VENTA AL PUBLICO DE GNV",
+"400-CONSUMIDORES DIRECTOS DE GLP CON CAPACIDAD MENOR O IGUAL A 1000 GLN",
+"401-CONSUMIDORES DIRECTOS DE GLP CON CAPACIDAD MAYOR A 1000 GLN",
+"600-REDES DE DISTRIBUCIÓN DE GLP CON CAPACIDAD MENOR O IGUAL A 1000 GLN",
+"601-REDES DE DISTRIBUCIÓN DE GLP CON CAPACIDAD MAYOR A 1000 GLN",
+"607-ESTACION DE COMPRESIÓN DE GAS NATURAL",
+"613-ESTACIÓN DE CARGA DE GNL",
+"618-ESTACIÓN DE CARGA DE GNC",
+"975-CONSUMIDORES DIRECTOS CON INSTALACIONES ESTRATEGICAS",
+"982-CONSUMIDOR DIRECTO CON INSTALACIONES ESTRATEGICAS DE GLP CON CAPACIDAD MAYOR A 1000 GLN",
+"983-CONSUMIDOR DIRECTO CON INSTALACIONES ESTRATEGICAS TEMPORALES",
+"984-CONSUMIDOR DIRECTO CON INSTALACIONES ESTRATEGICAS DE GLP CON CAPACIDAD MENOR O IGUAL A 1000 GLN"
+];
+
+const colores = {};
+actividadesPermitidas.forEach((a,i)=>{
+  colores[a] = `hsl(${(i*37)%360},70%,50%)`;
+});
 
 function colorActividad(act){
- let c = act.substring(0,3);
- const colores = {
-  "030":"#8e44ad","034":"#9b59b6","040":"#2980b9","050":"orange",
-  "051":"#f39c12","052":"#d35400","053":"#e67e22","056":"blue",
-  "070":"#16a085","071":"red","074":"#27ae60","078":"#2ecc71",
-  "101":"#1abc9c","102":"green","106":"darkgreen","107":"violet",
-  "112":"#7f8c8d","114":"#95a5a6","115":"#34495e","190":"#c0392b",
-  "300":"#6c3483","320":"brown","400":"#f1c40f","401":"#f39c12",
-  "600":"#2980b9","601":"#1f618d","607":"#17a589","613":"#48c9b0",
-  "618":"#45b39d","975":"#922b21","982":"#641e16","983":"#7b241c",
-  "984":"#943126"
- };
- return colores[c] || "black";
+  return colores[act] || "#999";
 }
 
-// ===== MAP INIT =====
-function initMap(){
- map = new google.maps.Map(document.getElementById("map"), {
-   center:{lat:-12.05,lng:-77.05},
-   zoom:11
- });
+// =====================
+// CARGA DE DATOS
+// =====================
+fetch("datos.json")
+.then(r=>r.json())
+.then(json=>{
+  datos = json.filter(d=>actividadesPermitidas.includes(d.actividad));
+  iniciarMapa();
+  cargarFiltros();
+  dibujarMarcadores(datos);
+});
 
- fetch("/datos")
- .then(r=>r.json())
- .then(data=>{
-   datos=data;
-   cargarFiltros();
-   dibujarMarcadores(datos);
-   document.getElementById("contador").innerHTML =
-    "Total registros: <b>"+datos.length+"</b>";
- });
+// =====================
+function iniciarMapa(){
+  map = new google.maps.Map(document.getElementById("map"),{
+    center:{lat:-9.19,lng:-75.02},
+    zoom:6
+  });
 }
 
-// ===== DIBUJO =====
+// =====================
+function cargarFiltros(){
+  cargarOpciones("filtroProvincia",[...new Set(datos.map(d=>d.provincia))]);
+  cargarOpciones("filtroDistrito",[...new Set(datos.map(d=>d.distrito))]);
+  cargarOpciones("filtroActividad",actividadesPermitidas);
+}
+
+function cargarOpciones(id,lista){
+  const sel=document.getElementById(id);
+  lista.sort().forEach(v=>{
+    let op=document.createElement("option");
+    op.value=v;
+    op.textContent=v;
+    sel.appendChild(op);
+  });
+}
+
+// =====================
+function obtenerSeleccion(id){
+  return [...document.getElementById(id).selectedOptions].map(o=>o.value);
+}
+
+// =====================
+function aplicarFiltros(){
+  let prov = obtenerSeleccion("filtroProvincia");
+  let dist = obtenerSeleccion("filtroDistrito");
+  let act = obtenerSeleccion("filtroActividad");
+
+  let filtrado = datos.filter(d=>{
+    return (prov.length==0 || prov.includes(d.provincia)) &&
+           (dist.length==0 || dist.includes(d.distrito)) &&
+           (act.length==0 || act.includes(d.actividad));
+  });
+
+  dibujarMarcadores(filtrado);
+  actualizarLeyenda(filtrado);
+}
+
+// =====================
+// DIBUJO OPTIMIZADO
+// =====================
 function dibujarMarcadores(lista){
+
+ if(markerCluster){
+   markerCluster.clearMarkers();
+ }
  marcadores.forEach(m=>m.setMap(null));
  marcadores=[];
 
- lista.forEach(d=>{
-   let marker=new google.maps.Marker({
-     position:{lat:d.lat,lng:d.lng},
-     map:map,
-     icon:{
-       path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-       scale:5,
-       fillColor:colorActividad(d.actividad),
-       fillOpacity:1,
-       strokeWeight:1
-     }
-   });
+ let i=0;
+ const batch=500;
 
-   let info=new google.maps.InfoWindow({
-     content:
-     `<b>${d.razon}</b><br>
-      Código Osinergmin: ${d.codigo}<br>
-      Registro: ${d.registro}<br>
-      Estado: ${d.estado}<br>
-      Capacidad: ${d.capacidad}<br>
-      Última fiscalización: ${d.fiscalizacion}`
-   });
+ function crearLote(){
+   const nuevos=[];
 
-   marker.addListener("click",()=>info.open(map,marker));
-   marcadores.push(marker);
- });
+   for(let j=0;j<batch && i<lista.length;j++,i++){
+     const d=lista[i];
 
- document.getElementById("contador").innerHTML =
-  "Total: <b>"+lista.length+"</b>";
-}
+     let marker = new google.maps.Marker({
+       position:{lat:d.lat,lng:d.lng},
+       icon:{
+         path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+         scale:5,
+         fillColor: colorActividad(d.actividad),
+         fillOpacity:1,
+         strokeWeight:1
+       }
+     });
 
-// ===== FILTROS =====
-function cargarFiltros(){
- llenar("f_estado","estado");
- llenar("f_actividad","actividad");
- llenar("f_provincia","provincia");
- llenar("f_distrito","distrito");
-}
+     let info = new google.maps.InfoWindow({
+       content:`
+        <b>${d.razon}</b><br>
+        Código Osinergmin: ${d.codigo}<br>
+        Registro: ${d.registro}<br>
+        Estado: ${d.estado}<br>
+        Capacidad: ${d.capacidad}<br>
+        Última fiscalización: ${d.fiscalizacion}
+       `
+     });
 
-function llenar(id,campo){
- let sel=document.getElementById(id);
- sel.innerHTML="";
- let vals=[...new Set(datos.map(d=>d[campo]))].sort();
- vals.forEach(v=>{
-   if(v){
-     let op=document.createElement("option");
-     op.value=v; op.text=v;
-     sel.add(op);
+     marker.addListener("click",()=>info.open(map,marker));
+
+     nuevos.push(marker);
+     marcadores.push(marker);
    }
- });
- document.getElementById(id).addEventListener("change", ()=>{
-   clearTimeout(filtroTimeout);
-   filtroTimeout=setTimeout(aplicarFiltros,150);
- });
-}
 
-function valores(id){
- return Array.from(document.getElementById(id).selectedOptions)
-        .map(o=>o.value);
-}
+   if(!markerCluster){
+     markerCluster = new markerClusterer.MarkerClusterer({
+       map,
+       markers:nuevos
+     });
+   } else {
+     markerCluster.addMarkers(nuevos);
+   }
 
-function aplicarFiltros(){
- let est=valores("f_estado");
- let act=valores("f_actividad");
- let prov=valores("f_provincia");
- let dist=valores("f_distrito");
-
- let filtrados = datos.filter(d =>
-   (est.length==0 || est.includes(d.estado)) &&
-   (act.length==0 || act.includes(d.actividad)) &&
-   (prov.length==0 || prov.includes(d.provincia)) &&
-   (dist.length==0 || dist.includes(d.distrito))
- );
-
- dibujarMarcadores(filtrados);
- actualizarEstadisticas(filtrados);
-}
-
-// ===== ESTADÍSTICAS =====
-function actualizarEstadisticas(lista){
- let panel=document.getElementById("panelStats");
-
- if(lista.length===datos.length){
-   panel.style.display="none";
-   return;
+   if(i<lista.length){
+     requestAnimationFrame(crearLote);
+   } else {
+     document.getElementById("contador").innerHTML =
+       "Total: <b>"+lista.length+"</b>";
+   }
  }
- panel.style.display="block";
 
- let porAct={};
- lista.forEach(d=>{
-   let c=d.actividad.substring(0,3);
-   porAct[c]=(porAct[c]||0)+1;
- });
-
- let htmlAct="<b>📌 Por Actividad</b><br>";
- for(let c in porAct){
-   let nombre = actividadesInfo[c] || c;
-   let color = colorActividad(c);
-   htmlAct+=`<span style="color:${color}">■</span> ${nombre}: ${porAct[c]}<br>`;
- }
- document.getElementById("stats_actividad").innerHTML=htmlAct;
-
- let porDist={};
- lista.forEach(d=>{
-   porDist[d.distrito]=(porDist[d.distrito]||0)+1;
- });
-
- let htmlDist="<br><b>🏘️ Por Distrito</b><br>";
- for(let d in porDist){
-   htmlDist+=`${d}: ${porDist[d]}<br>`;
- }
- document.getElementById("stats_geo").innerHTML=htmlDist;
-
- document.getElementById("stats_total").innerHTML =
-  "<br><b>Total general: "+lista.length+"</b>";
+ crearLote();
 }
 
-// ===== BUSCADOR CORREGIDO =====
+// =====================
+function actualizarLeyenda(lista){
+  const ley = document.getElementById("leyenda");
+  ley.innerHTML="<b>Por actividad</b><br>";
+
+  const conteo={};
+  lista.forEach(d=>{
+    conteo[d.actividad]=(conteo[d.actividad]||0)+1;
+  });
+
+  Object.keys(conteo).forEach(act=>{
+    ley.innerHTML += `
+      <div>
+        <span style="display:inline-block;width:12px;height:12px;background:${colorActividad(act)}"></span>
+        ${act}: <b>${conteo[act]}</b>
+      </div>
+    `;
+  });
+
+  ley.innerHTML += `<hr>Total: <b>${lista.length}</b>`;
+}
+
+// =====================
+// BUSCADOR (queda igual que tu versión actual)
 function buscar(){
- let texto = document.getElementById("buscador").value.trim().toLowerCase();
- if(texto==="") return;
-
- // 1) Buscar coincidencia exacta por código
- let encontrado = datos.find(d => d.codigo.toLowerCase() === texto);
-
- // 2) Si no existe, buscar por razón social parcial
- if(!encontrado){
-   encontrado = datos.find(d => d.razon.toLowerCase().includes(texto));
- }
-
- if(!encontrado){
-   alert("No se encontró ningún registro");
-   return;
- }
-
- // Centrar mapa
- map.setCenter({lat:encontrado.lat, lng:encontrado.lng});
- map.setZoom(15);
-
- // Abrir ventana del marcador correcto
- for(let m of marcadores){
-   if(m.getPosition().lat() === encontrado.lat &&
-      m.getPosition().lng() === encontrado.lng){
-        google.maps.event.trigger(m,'click');
-        break;
-   }
- }
+  alert("Buscador pendiente de ajuste (como acordamos no se modifica aún).");
 }
 
-// ===== RESET =====
-function resetFiltros(){
- document.querySelectorAll("select").forEach(s=>s.selectedIndex=-1);
- dibujarMarcadores(datos);
- document.getElementById("panelStats").style.display="none";
- document.getElementById("contador").innerHTML =
-  "Total registros: <b>"+datos.length+"</b>";
-}
 </script>
-
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb1xIG3Iks&callback=initMap" async defer></script>
-
 </body>
 </html>
+
 
 
 

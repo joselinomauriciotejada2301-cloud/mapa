@@ -7,7 +7,7 @@ app = Flask(__name__)
 # CONFIGURACIÓN
 # ========================
 
-EXCEL_PATH = r"F:\JLINO\Proyecto MAPA\Datosmapa.xlsx"
+EXCEL_PATH = "Datosmapa.xlsx"
 
 COLUMN_MAPPING = {
     "Razón Social": "razon",

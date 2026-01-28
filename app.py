@@ -1,12 +1,11 @@
 from flask import Flask, jsonify, render_template
 import pandas as pd
+import os
 
 app = Flask(__name__)
 
-# ===== CONFIGURACIÓN =====
 EXCEL_PATH = "Datosmapa.xlsx"
 
-# ===== CARGA DE DATOS =====
 def cargar_datos():
     df = pd.read_excel(EXCEL_PATH)
 
@@ -27,26 +26,23 @@ def cargar_datos():
         "Latitud": "lat"
     })
 
-    # Limpiar coordenadas vacías
     df["lat"] = pd.to_numeric(df["lat"], errors="coerce")
     df["lng"] = pd.to_numeric(df["lng"], errors="coerce")
     df = df.dropna(subset=["lat", "lng"])
 
     return df.to_dict(orient="records")
 
-
 @app.route("/")
 def index():
     return render_template("mapa.html")
-
 
 @app.route("/datos")
 def datos():
     return jsonify(cargar_datos())
 
-
 if __name__ == "__main__":
-    print("✅ Servidor iniciado")
-    print("🌎 Abre en tu navegador: http://127.0.0.1:5000")
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
+
+
 

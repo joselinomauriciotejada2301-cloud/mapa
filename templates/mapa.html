@@ -17,7 +17,7 @@ body{margin:0;font-family:Arial;}
     border-radius:8px;
     box-shadow:2px 2px 6px #999;
     font-size:13px;
-    width:300px;
+    width:310px;
 }
 
 .panel select, .panel input, .panel button{
@@ -45,12 +45,12 @@ body{margin:0;font-family:Arial;}
 
 <hr>
 
-<b>🎛️ Filtros (Ctrl para múltiple)</b>
+<b>🎛️ Filtros (Ctrl + click múltiple)</b>
 
-<select id="f_estado" multiple onchange="aplicarFiltros()"></select>
-<select id="f_actividad" multiple onchange="aplicarFiltros()"></select>
-<select id="f_provincia" multiple onchange="aplicarFiltros()"></select>
-<select id="f_distrito" multiple onchange="aplicarFiltros()"></select>
+<select id="f_estado" multiple></select>
+<select id="f_actividad" multiple></select>
+<select id="f_provincia" multiple></select>
+<select id="f_distrito" multiple></select>
 
 <button onclick="resetFiltros()">Limpiar filtros</button>
 
@@ -69,8 +69,9 @@ body{margin:0;font-family:Arial;}
 
 <script>
 let map;
-let datos = [];
-let marcadores = [];
+let datos=[];
+let marcadores=[];
+let filtroTimeout=null;
 
 // ===== COLORES POR ACTIVIDAD =====
 function colorActividad(act){
@@ -89,10 +90,10 @@ function colorActividad(act){
     return colores[c] || "black";
 }
 
-// ===== MAPA =====
+// ===== INIT MAP =====
 function initMap(){
     map = new google.maps.Map(document.getElementById("map"), {
-        center:{lat:-12.05, lng:-77.05},
+        center:{lat:-12.05,lng:-77.05},
         zoom:11
     });
 
@@ -105,9 +106,19 @@ function initMap(){
         document.getElementById("contador").innerHTML =
           "Total registros: <b>"+datos.length+"</b>";
     });
+
+    // eventos filtros con debounce
+    ["f_estado","f_actividad","f_provincia","f_distrito"]
+      .forEach(id=>{
+        document.getElementById(id)
+        .addEventListener("change", ()=> {
+            clearTimeout(filtroTimeout);
+            filtroTimeout=setTimeout(aplicarFiltros,200);
+        });
+      });
 }
 
-// ===== MARCADORES =====
+// ===== DIBUJA MARCADORES =====
 function dibujarMarcadores(lista){
     marcadores.forEach(m=>m.setMap(null));
     marcadores=[];
@@ -117,13 +128,24 @@ function dibujarMarcadores(lista){
             position:{lat:d.lat,lng:d.lng},
             map:map,
             icon:{
-              path:google.maps.SymbolPath.CIRCLE,
+              path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
               scale:5,
               fillColor:colorActividad(d.actividad),
               fillOpacity:1,
               strokeWeight:1
             }
         });
+
+        let info=new google.maps.InfoWindow({
+          content:`<div style="font-size:13px">
+          <b>${d.razon}</b><br>
+          Código: ${d.codigo}<br>
+          Actividad: ${d.actividad}<br>
+          Estado: ${d.estado}
+          </div>`
+        });
+
+        marker.addListener("click",()=>info.open(map,marker));
         marcadores.push(marker);
     });
 
@@ -131,7 +153,7 @@ function dibujarMarcadores(lista){
       "Total: <b>"+lista.length+"</b>";
 }
 
-// ===== CARGA FILTROS =====
+// ===== CARGAR FILTROS =====
 function cargarFiltros(){
     llenar("f_estado","estado");
     llenar("f_actividad","actividad");
@@ -152,19 +174,18 @@ function llenar(id,campo){
     });
 }
 
-// ===== MULTI SELECT =====
-function valoresSeleccionados(id){
+function valores(id){
     return Array.from(document.getElementById(id).selectedOptions)
-                .map(o=>o.value);
+           .map(o=>o.value);
 }
 
 // ===== APLICAR FILTROS =====
 function aplicarFiltros(){
 
-    let est = valoresSeleccionados("f_estado");
-    let act = valoresSeleccionados("f_actividad");
-    let prov = valoresSeleccionados("f_provincia");
-    let dist = valoresSeleccionados("f_distrito");
+    let est=valores("f_estado");
+    let act=valores("f_actividad");
+    let prov=valores("f_provincia");
+    let dist=valores("f_distrito");
 
     let filtrados = datos.filter(d =>
         (est.length==0 || est.includes(d.estado)) &&
@@ -177,58 +198,55 @@ function aplicarFiltros(){
     actualizarEstadisticas(filtrados, prov);
 
     if(filtrados.length>0){
-        map.setCenter({lat:filtrados[0].lat, lng:filtrados[0].lng});
-        map.setZoom(12);
+        map.setCenter({lat:filtrados[0].lat,lng:filtrados[0].lng});
     }
 }
 
-// ===== ESTADISTICAS DINÁMICAS =====
+// ===== ESTADISTICAS OPTIMIZADAS =====
 function actualizarEstadisticas(lista, provinciasSeleccionadas){
 
     let panel=document.getElementById("panelStats");
 
-    // Si no hay filtros → ocultar panel
-    if(lista.length === datos.length){
+    if(lista.length===datos.length){
         panel.style.display="none";
         return;
     }
     panel.style.display="block";
 
-    // --- Conteo por actividad ---
-    let porActividad={};
+    // --- actividad ---
+    let porAct={};
     lista.forEach(d=>{
         let c=d.actividad.substring(0,3);
-        porActividad[c]=(porActividad[c]||0)+1;
+        porAct[c]=(porAct[c]||0)+1;
     });
 
     let htmlAct="<b>📌 Por Actividad</b><br>";
-    for(let a in porActividad){
-        htmlAct+=`${a}: ${porActividad[a]}<br>`;
+    for(let a in porAct){
+        htmlAct+=`${a}: ${porAct[a]}<br>`;
     }
     document.getElementById("stats_actividad").innerHTML=htmlAct;
 
-    // --- Conteo geográfico ---
+    // --- geo ---
     let porGeo={};
+
     if(provinciasSeleccionadas.length>0){
-        // si filtró provincia → contar distritos
         lista.forEach(d=>{
             porGeo[d.distrito]=(porGeo[d.distrito]||0)+1;
         });
-        let html="<br><b>🏘️ Por Distrito</b><br>";
-        for(let g in porGeo){ html+=`${g}: ${porGeo[g]}<br>`; }
-        document.getElementById("stats_geo").innerHTML=html;
+        let h="<br><b>🏘️ Por Distrito</b><br>";
+        for(let g in porGeo){h+=`${g}: ${porGeo[g]}<br>`;}
+        document.getElementById("stats_geo").innerHTML=h;
     } else {
-        // si no filtró provincia → contar provincias
         lista.forEach(d=>{
             porGeo[d.provincia]=(porGeo[d.provincia]||0)+1;
         });
-        let html="<br><b>🗺️ Por Provincia</b><br>";
-        for(let g in porGeo){ html+=`${g}: ${porGeo[g]}<br>`; }
-        document.getElementById("stats_geo").innerHTML=html;
+        let h="<br><b>🗺️ Por Provincia</b><br>";
+        for(let g in porGeo){h+=`${g}: ${porGeo[g]}<br>`;}
+        document.getElementById("stats_geo").innerHTML=h;
     }
 
     document.getElementById("stats_total").innerHTML =
-        "<br><b>Total general: "+lista.length+"</b>";
+      "<br><b>Total general: "+lista.length+"</b>";
 }
 
 // ===== BUSCADOR =====
@@ -254,10 +272,13 @@ function resetFiltros(){
 }
 </script>
 
-<script src="https://maps.googleapis.com/maps/api/js?key=TU_API_KEY_AQUI&callback=initMap" async defer></script>
+<!-- Google Maps -->
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb1xIG3Iks&callback=initMap" async defer></script>
 
 </body>
 </html>
+
+
 
 
 

@@ -2,285 +2,183 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Mapa OSINERGMIN</title>
+<title>Mapa Osinergmin</title>
+
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb1xIG3IksI"></script>
 
 <style>
-body{margin:0;font-family:Arial;}
-#map{height:100vh;}
-
-.panel{
-    position:absolute;
-    top:10px;
-    left:10px;
-    z-index:5;
-    background:white;
-    padding:12px;
-    border-radius:8px;
-    box-shadow:2px 2px 6px #999;
-    font-size:13px;
-    width:270px;
+body { font-family: Arial; margin:0; }
+#map { height: 90vh; width: 100%; }
+#panel {
+  padding:10px;
+  background:#f2f2f2;
 }
-
-.panel select, .panel input, .panel button{
-    width:100%;
-    margin-bottom:6px;
+select,input {
+  margin:3px;
+  padding:5px;
 }
-
-.leyenda{
-    margin-top:8px;
-    font-size:12px;
-}
-
-.colorBox{
-    display:inline-block;
-    width:12px;
-    height:12px;
-    margin-right:6px;
-}
-.stats{
-    margin-top:8px;
-    font-size:12px;
-    max-height:120px;
-    overflow:auto;
+#estadisticas {
+  padding:8px;
+  font-size:14px;
 }
 </style>
 </head>
 
 <body>
 
-<div class="panel">
-<b>🔎 Buscador</b>
-<input type="text" id="buscador" placeholder="Código o Razón Social">
-<button onclick="buscar()">Buscar</button>
+<div id="panel">
+  🔎 Buscar: <input type="text" id="busqueda" placeholder="Código o Razón Social">
 
-<hr>
+  Actividad:
+  <select id="filtroActividad"></select>
 
-<b>🎛️ Filtros</b>
-<select id="f_estado" onchange="aplicarFiltros()">
-<option value="">-- Estado --</option>
-</select>
+  Estado:
+  <select id="filtroEstado"></select>
 
-<select id="f_actividad" onchange="aplicarFiltros()">
-<option value="">-- Actividad --</option>
-</select>
+  Provincia:
+  <select id="filtroProvincia"></select>
 
-<select id="f_provincia" onchange="aplicarFiltros()">
-<option value="">-- Provincia --</option>
-</select>
+  Distrito:
+  <select id="filtroDistrito"></select>
 
-<select id="f_distrito" onchange="aplicarFiltros()">
-<option value="">-- Distrito --</option>
-</select>
-
-<hr>
-<div id="contador"></div>
-
-<!-- ===== LEYENDA ===== -->
-<div class="leyenda">
-<b>🗺️ Leyenda de Actividades</b><br>
-<div><span class="colorBox" style="background:orange"></span>050 - Estación de Servicios</div>
-<div><span class="colorBox" style="background:blue"></span>056 - Estación con Gasocentro GLP</div>
-<div><span class="colorBox" style="background:purple"></span>057 - Grifos Rurales</div>
-<div><span class="colorBox" style="background:gray"></span>058 - Grifos Flotantes</div>
-<div><span class="colorBox" style="background:red"></span>071 - Gasocentro GLP</div>
-<div><span class="colorBox" style="background:green"></span>102 - Venta Pública GNV</div>
-<div><span class="colorBox" style="background:darkgreen"></span>106 - Estación con GNV</div>
-<div><span class="colorBox" style="background:violet"></span>107 - Estación GLP y GNV</div>
-<div><span class="colorBox" style="background:brown"></span>320 - GLP + Venta GNV</div>
-</div>
-
-<!-- ===== ESTADÍSTICAS ===== -->
-<div class="stats">
-<b>📊 Estadísticas visibles</b>
-<div id="stats_provincia"></div>
-<div id="stats_distrito"></div>
-</div>
-
+  <span id="contador"></span>
 </div>
 
 <div id="map"></div>
 
+<div id="estadisticas"></div>
+
 <script>
 let map;
+let markers = [];
 let datos = [];
-let marcadores = [];
 
-// ===== COLORES POR ACTIVIDAD =====
-function colorActividad(act){
-    act = act.toUpperCase();
-    if(act.includes("050")) return "orange";
-    if(act.includes("056")) return "blue";
-    if(act.includes("057")) return "purple";
-    if(act.includes("058")) return "gray";
-    if(act.includes("071")) return "red";
-    if(act.includes("102")) return "green";
-    if(act.includes("106")) return "darkgreen";
-    if(act.includes("107")) return "violet";
-    if(act.includes("320")) return "brown";
-    return "black";
+const colores = {};
+const paleta = ["red","blue","green","orange","purple","pink","yellow","brown","gray","black"];
+
+function asignarColor(act){
+  if(!colores[act]){
+    colores[act] = paleta[Object.keys(colores).length % paleta.length];
+  }
+  return colores[act];
 }
 
-// ===== INICIAR MAPA =====
 function initMap(){
-    map = new google.maps.Map(document.getElementById("map"), {
-        center:{lat:-12.05, lng:-77.05},
-        zoom:11
-    });
+  map = new google.maps.Map(document.getElementById("map"), {
+    center:{lat:-12.1,lng:-77.05},
+    zoom:10
+  });
 
-    fetch("/datos")
-    .then(res => res.json())
-    .then(data => {
-        datos = data;
-        cargarFiltros();
-        dibujarMarcadores(datos);
-        actualizarEstadisticas(datos);
+  fetch("/datos")
+    .then(r=>r.json())
+    .then(r=>{
+      datos = r;
+      cargarFiltros();
+      mostrarMarcadores();
+      generarLeyenda();
+      generarEstadisticas();
     });
 }
 
-// ===== DIBUJAR MARCADORES =====
-function dibujarMarcadores(lista){
-
-    marcadores.forEach(m => m.setMap(null));
-    marcadores = [];
-
-    lista.forEach(d => {
-
-        let marker = new google.maps.Marker({
-            position:{lat:d.lat, lng:d.lng},
-            map:map,
-            title:d.razon,
-            icon:{
-              path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-              scale:5,
-              fillColor: colorActividad(d.actividad),
-              fillOpacity:1,
-              strokeWeight:1
-            }
-        });
-
-        let info = new google.maps.InfoWindow({
-            content:`
-            <div style="font-size:13px">
-            <b>Razón Social:</b> ${d.razon}<br>
-            <b>Código Osinergmin:</b> ${d.codigo}<br>
-            <b>Registro Hidrocarburos:</b> ${d.registro}<br>
-            <b>Actividad:</b> ${d.actividad}<br>
-            <b>Capacidad:</b> ${d.capacidad}<br>
-            <b>Última Fiscalización:</b> ${d.fiscalizacion}<br>
-            <b>Estado:</b> ${d.estado}
-            </div>`
-        });
-
-        marker.addListener("click", ()=>info.open(map,marker));
-
-        marcadores.push(marker);
-    });
-
-    document.getElementById("contador").innerHTML =
-        "Registros visibles: <b>"+lista.length+"</b>";
-}
-
-// ===== CARGAR COMBOS =====
 function cargarFiltros(){
+  llenarSelect("filtroActividad", [...new Set(datos.map(d=>d.actividad))]);
+  llenarSelect("filtroEstado", [...new Set(datos.map(d=>d.estado))]);
+  llenarSelect("filtroProvincia", [...new Set(datos.map(d=>d.provincia))]);
+  llenarSelect("filtroDistrito", [...new Set(datos.map(d=>d.distrito))]);
 
-    function llenar(id, campo){
-        let select = document.getElementById(id);
-        let valores = [...new Set(datos.map(d => d[campo]))].sort();
-        valores.forEach(v=>{
-            if(v){
-                let op = document.createElement("option");
-                op.value = v;
-                op.text = v;
-                select.add(op);
-            }
-        });
-    }
-
-    llenar("f_estado","estado");
-    llenar("f_actividad","actividad");
-    llenar("f_provincia","provincia");
-    llenar("f_distrito","distrito");
-
-    document.getElementById("contador").innerHTML =
-        "Registros totales: <b>"+datos.length+"</b>";
+  document.querySelectorAll("select,input").forEach(e=>{
+    e.addEventListener("change", aplicarFiltros);
+    e.addEventListener("keyup", aplicarFiltros);
+  });
 }
 
-// ===== APLICAR FILTROS =====
-function aplicarFiltros(){
-
-    let est = document.getElementById("f_estado").value;
-    let act = document.getElementById("f_actividad").value;
-    let prov = document.getElementById("f_provincia").value;
-    let dist = document.getElementById("f_distrito").value;
-
-    let filtrados = datos.filter(d =>
-        (est=="" || d.estado==est) &&
-        (act=="" || d.actividad==act) &&
-        (prov=="" || d.provincia==prov) &&
-        (dist=="" || d.distrito==dist)
-    );
-
-    dibujarMarcadores(filtrados);
-    actualizarEstadisticas(filtrados);
-
-    if(filtrados.length>0){
-        map.setCenter({lat:filtrados[0].lat, lng:filtrados[0].lng});
-        map.setZoom(12);
-    }
+function llenarSelect(id, lista){
+  const sel = document.getElementById(id);
+  sel.innerHTML = '<option value="">Todos</option>';
+  lista.sort().forEach(v=>{
+    if(v) sel.innerHTML += `<option>${v}</option>`;
+  });
 }
 
-// ===== BUSCADOR =====
-function buscar(){
-    let texto = document.getElementById("buscador").value.toLowerCase();
+function mostrarMarcadores(filtrados=datos){
+  markers.forEach(m=>m.setMap(null));
+  markers=[];
 
-    let encontrado = datos.find(d =>
-        d.codigo.toLowerCase().includes(texto) ||
-        d.razon.toLowerCase().includes(texto)
-    );
-
-    if(encontrado){
-        map.setCenter({lat:encontrado.lat, lng:encontrado.lng});
-        map.setZoom(16);
-
-        marcadores.forEach(m=>{
-            let pos = m.getPosition();
-            if(pos.lat()==encontrado.lat && pos.lng()==encontrado.lng){
-                google.maps.event.trigger(m,"click");
-            }
-        });
-    } else {
-        alert("No encontrado");
-    }
-}
-
-// ===== ESTADÍSTICAS =====
-function actualizarEstadisticas(lista){
-
-    let porProvincia = {};
-    let porDistrito = {};
-
-    lista.forEach(d=>{
-        porProvincia[d.provincia] = (porProvincia[d.provincia] || 0) + 1;
-        porDistrito[d.distrito] = (porDistrito[d.distrito] || 0) + 1;
+  filtrados.forEach(d=>{
+    const marker = new google.maps.Marker({
+      position:{lat:parseFloat(d.lat), lng:parseFloat(d.lng)},
+      map:map,
+      icon:{
+        path:google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+        scale:5,
+        fillColor:asignarColor(d.actividad),
+        fillOpacity:1,
+        strokeWeight:1
+      }
     });
 
-    let htmlProv = "<b>Por Provincia:</b><br>";
-    for (let p in porProvincia){
-        htmlProv += `${p}: ${porProvincia[p]}<br>`;
-    }
+    const info = `
+      <b>${d.razon}</b><br>
+      Código: ${d.codigo}<br>
+      Registro: ${d.registro}<br>
+      Actividad: ${d.actividad}<br>
+      Capacidad: ${d.capacidad}<br>
+      Última Fiscalización: ${d.fiscalizacion}<br>
+      Estado: ${d.estado}
+    `;
 
-    let htmlDist = "<br><b>Por Distrito:</b><br>";
-    for (let d in porDistrito){
-        htmlDist += `${d}: ${porDistrito[d]}<br>`;
-    }
+    const infowindow = new google.maps.InfoWindow({content:info});
+    marker.addListener("click",()=>infowindow.open(map,marker));
+    markers.push(marker);
+  });
 
-    document.getElementById("stats_provincia").innerHTML = htmlProv;
-    document.getElementById("stats_distrito").innerHTML = htmlDist;
+  document.getElementById("contador").innerHTML =
+   "Total: " + filtrados.length;
 }
-</script>
 
-<!-- ==== GOOGLE MAPS API ==== -->
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb1xIG3Iks&callback=initMap" async defer></script>
+function aplicarFiltros(){
+  const act = document.getElementById("filtroActividad").value;
+  const est = document.getElementById("filtroEstado").value;
+  const prov = document.getElementById("filtroProvincia").value;
+  const dist = document.getElementById("filtroDistrito").value;
+  const bus = document.getElementById("busqueda").value.toLowerCase();
+
+  const filtrados = datos.filter(d=>{
+    return (!act || d.actividad==act) &&
+           (!est || d.estado==est) &&
+           (!prov || d.provincia==prov) &&
+           (!dist || d.distrito==dist) &&
+           (!bus || d.codigo.toLowerCase().includes(bus) || d.razon.toLowerCase().includes(bus));
+  });
+
+  mostrarMarcadores(filtrados);
+  generarEstadisticas(filtrados);
+}
+
+function generarLeyenda(){
+  let html="<b>Leyenda por actividad</b><br>";
+  for(let act in colores){
+    html += `<span style="color:${colores[act]}">⬤</span> ${act}<br>`;
+  }
+  document.getElementById("estadisticas").innerHTML = html;
+}
+
+function generarEstadisticas(filtrados=datos){
+  const conteoProv = {};
+  filtrados.forEach(d=>{
+    conteoProv[d.provincia] = (conteoProv[d.provincia]||0)+1;
+  });
+
+  let html = document.getElementById("estadisticas").innerHTML;
+  html += "<hr><b>Estadísticas por Provincia</b><br>";
+  for(let p in conteoProv){
+    html += `${p}: ${conteoProv[p]}<br>`;
+  }
+  document.getElementById("estadisticas").innerHTML = html;
+}
+
+window.onload = initMap;
+</script>
 
 </body>
 </html>

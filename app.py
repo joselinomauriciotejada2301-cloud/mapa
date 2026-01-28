@@ -13,15 +13,18 @@ def cargar_datos():
         "Razón Social": "razon",
         "Razon Social": "razon",
         "Registro de hidrocarburos": "registro",
+        "Registro": "registro",
         "Código Osinergmin": "codigo",
         "Codigo Osinergmin": "codigo",
         "Actividad": "actividad",
-        "Ubigeo (Dirección)": "direccion",
         "Provincia": "provincia",
         "Distrito": "distrito",
         "Capacidad de almacenamiento": "capacidad",
+        "Capacidad": "capacidad",
         "Estado del registro (Habilitado/Suspendido)": "estado",
+        "Estado": "estado",
         "Ultima fiscalización": "fiscalizacion",
+        "Última fiscalización": "fiscalizacion",
         "Longitud": "lng",
         "Latitud": "lat"
     })
@@ -30,7 +33,7 @@ def cargar_datos():
     df["lng"] = pd.to_numeric(df["lng"], errors="coerce")
     df = df.dropna(subset=["lat", "lng"])
 
-    return df.to_dict(orient="records")
+    return df.fillna("").to_dict(orient="records")
 
 @app.route("/")
 def index():
@@ -43,6 +46,7 @@ def datos():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
 
 
 

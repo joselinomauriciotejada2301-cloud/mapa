@@ -67,51 +67,32 @@ body{margin:0;font-family:Arial;}
 
 <div id="map"></div>
 
-<!-- Google Maps -->
-<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb1xIG3Iks&callback=initMap" async defer></script>
-
-<!-- MarkerClusterer -->
-<script src="https://unpkg.com/@googlemaps/markerclusterer/dist/index.min.js"></script>
-
 <script>
 let map;
 let datos=[];
 let marcadores=[];
 let filtroTimeout=null;
-let markerCluster=null;
 
 // ======= LISTA ACTIVIDADES + COLORES =======
 const actividadesInfo = {
-"030":"030-REFINERIAS TOPPING",
-"034":"034-PLANTAS LUBRICANTES Y GRASAS",
+"030":"030-REFINERIAS TOPPING","034":"034-PLANTAS LUBRICANTES Y GRASAS",
 "040":"040-PLANTA DE ABASTECIMIENTO DE COMBUSTIBLES LIQUIDOS",
 "050":"050-ESTACIÓN DE SERVICIOS / GRIFOS",
 "051":"051-CONSUMIDOR DIRECTO DE COMBUSTIBLE LÍQUIDO HASTA 5 MB",
 "052":"052-CONSUMIDOR DIRECTO DE COMBUSTIBLE LÍQUIDO DE 5 A 50 MB",
 "053":"053-CONSUMIDOR DIRECTO DE COMBUSTIBLE LÍQUIDO MAYOR A 50 MB",
 "056":"056-ESTACIÓN DE SERVICIO CON GASOCENTRO DE GLP",
-"070":"070-PLANTAS ENVASADORAS GLP",
-"071":"071-GASOCENTROS DE GLP",
-"074":"074-LOCALES DE VENTA GLP ≤ 5000 KG",
-"078":"078-LOCALES DE VENTA GLP > 5000 KG",
-"101":"101-CONSUMIDOR DIRECTO DE GNV",
-"102":"102-ESTABLECIMIENTO DE VENTA DE GNV",
-"106":"106-EE.SS CON GNV",
-"107":"107-EE.SS CON GLP Y GNV",
-"112":"112-CONSUMIDOR DIRECTO OPDH HASTA 5 MB",
-"114":"114-CONSUMIDOR DIRECTO OPDH DE 5 A 50 MB",
-"115":"115-CONSUMIDORES DIRECTOS OTROS DERIVADOS",
-"190":"190-ESTABLECIMIENTO GNV SISTEMA INTEGRADO",
-"300":"300-PROCESO GNL",
-"320":"320-GASOCENTRO GLP + VENTA GNV",
-"400":"400-CONSUMIDOR DIRECTO GLP ≤1000 GLN",
-"401":"401-CONSUMIDOR DIRECTO GLP >1000 GLN",
-"600":"600-RED GLP ≤1000 GLN",
-"601":"601-RED GLP >1000 GLN",
-"607":"607-ESTACIÓN COMPRESIÓN GN",
-"613":"613-ESTACIÓN CARGA GNL",
-"618":"618-ESTACIÓN CARGA GNC",
-"975":"975-CONSUMIDOR DIRECTO INST. ESTRATÉGICAS",
+"070":"070-PLANTAS ENVASADORAS GLP","071":"071-GASOCENTROS DE GLP",
+"074":"074-LOCALES DE VENTA GLP ≤ 5000 KG","078":"078-LOCALES DE VENTA GLP > 5000 KG",
+"101":"101-CONSUMIDOR DIRECTO DE GNV","102":"102-ESTABLECIMIENTO DE VENTA DE GNV",
+"106":"106-EE.SS CON GNV","107":"107-EE.SS CON GLP Y GNV",
+"112":"112-CONSUMIDOR DIRECTO OPDH HASTA 5 MB","114":"114-CONSUMIDOR DIRECTO OPDH DE 5 A 50 MB",
+"115":"115-CONSUMIDORES DIRECTOS OTROS DERIVADOS","190":"190-ESTABLECIMIENTO GNV SISTEMA INTEGRADO",
+"300":"300-PROCESO GNL","320":"320-GASOCENTRO GLP + VENTA GNV",
+"400":"400-CONSUMIDOR DIRECTO GLP ≤1000 GLN","401":"401-CONSUMIDOR DIRECTO GLP >1000 GLN",
+"600":"600-RED GLP ≤1000 GLN","601":"601-RED GLP >1000 GLN",
+"607":"607-ESTACIÓN COMPRESIÓN GN","613":"613-ESTACIÓN CARGA GNL",
+"618":"618-ESTACIÓN CARGA GNC","975":"975-CONSUMIDOR DIRECTO INST. ESTRATÉGICAS",
 "982":"982-CONSUMIDOR DIRECTO INST. ESTRATÉGICAS GLP >1000",
 "983":"983-CONSUMIDOR DIRECTO INST. ESTRATÉGICAS TEMP",
 "984":"984-CONSUMIDOR DIRECTO INST. ESTRATÉGICAS GLP ≤1000"
@@ -127,8 +108,7 @@ function colorActividad(act){
   "112":"#7f8c8d","114":"#95a5a6","115":"#34495e","190":"#c0392b",
   "300":"#6c3483","320":"brown","400":"#f1c40f","401":"#f39c12",
   "600":"#2980b9","601":"#1f618d","607":"#17a589","613":"#48c9b0",
-  "618":"#45b39d","975":"#922b21","982":"#641e16","983":"#7b241c",
-  "984":"#943126"
+  "618":"#45b39d","975":"#922b21","982":"#641e16","983":"#7b241c","984":"#943126"
  };
  return colores[c] || "black";
 }
@@ -140,7 +120,6 @@ function initMap(){
    zoom:11
  });
 
- // 🔹 Se mantiene EXACTAMENTE tu fuente original
  fetch("/datos")
  .then(r=>r.json())
  .then(data=>{
@@ -152,27 +131,21 @@ function initMap(){
  });
 }
 
-// ===== DIBUJO OPTIMIZADO =====
+// ===== DIBUJO OPTIMIZADO POR LOTES =====
 function dibujarMarcadores(lista){
-
- // Limpia cluster anterior
- if(markerCluster){
-   markerCluster.clearMarkers();
- }
-
+ marcadores.forEach(m=>m.setMap(null));
  marcadores=[];
 
  let i=0;
- const batch=500;
+ const batch=400; // tamaño de lote
 
  function crearLote(){
-   let nuevos=[];
-
    for(let j=0;j<batch && i<lista.length;j++,i++){
-     let d = lista[i];
+     let d=lista[i];
 
      let marker=new google.maps.Marker({
        position:{lat:d.lat,lng:d.lng},
+       map:map,
        icon:{
          path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
          scale:5,
@@ -193,21 +166,10 @@ function dibujarMarcadores(lista){
      });
 
      marker.addListener("click",()=>info.open(map,marker));
-
-     nuevos.push(marker);
      marcadores.push(marker);
    }
 
-   if(!markerCluster){
-     markerCluster = new markerClusterer.MarkerClusterer({
-       map,
-       markers:nuevos
-     });
-   }else{
-     markerCluster.addMarkers(nuevos);
-   }
-
-   if(i<lista.length){
+   if(i < lista.length){
      requestAnimationFrame(crearLote);
    }else{
      document.getElementById("contador").innerHTML =
@@ -304,7 +266,7 @@ function actualizarEstadisticas(lista){
   "<br><b>Total general: "+lista.length+"</b>";
 }
 
-// ===== BUSCADOR =====
+// ===== BUSCADOR (igual que antes) =====
 function buscar(){
  let t=document.getElementById("buscador").value.toLowerCase();
  let e=datos.find(d =>
@@ -327,8 +289,12 @@ function resetFiltros(){
 }
 </script>
 
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb1xIG3Iks&callback=initMap" async defer></script>
+
 </body>
 </html>
+
+
 
 
 

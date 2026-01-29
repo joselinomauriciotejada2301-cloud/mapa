@@ -163,7 +163,7 @@ function toggleHeatmap(){
  }
 }
 
-// ===== DIBUJO DE MARCADORES POR LOTES =====
+// ===== DIBUJO MARCADORES =====
 function dibujarMarcadores(lista){
  marcadores.forEach(m=>m.setMap(null));
  marcadores=[];
@@ -265,7 +265,7 @@ function aplicarFiltros(){
  }
 }
 
-// ===== ESTADISTICAS DINAMICAS =====
+// ===== ESTADISTICAS =====
 function actualizarEstadisticas(lista){
  let panel=document.getElementById("panelStats");
 
@@ -304,18 +304,46 @@ function actualizarEstadisticas(lista){
   "<br><b>Total general: "+lista.length+"</b>";
 }
 
-// ===== BUSCADOR =====
+// ===== 🔎 BUSCADOR CORREGIDO =====
 function buscar(){
- let t=document.getElementById("buscador").value.toLowerCase();
- let e=datos.find(d =>
-   d.codigo.toLowerCase().includes(t) ||
-   d.razon.toLowerCase().includes(t)
- );
- if(e){
-   map.setCenter({lat:e.lat,lng:e.lng});
-   map.setZoom(15);
- } else alert("No encontrado");
+ let texto = document.getElementById("buscador").value.trim().toLowerCase();
+ if(texto===""){
+   resetFiltros();
+   return;
+ }
+
+ // Coincidencias por código exacto
+ let porCodigo = datos.filter(d => d.codigo.toLowerCase() === texto);
+
+ // Coincidencias por razón social parcial
+ let porRazon = datos.filter(d => d.razon.toLowerCase().includes(texto));
+
+ let resultado = porCodigo.length>0 ? porCodigo : porRazon;
+
+ if(resultado.length===0){
+   alert("No se encontraron coincidencias");
+   return;
+ }
+
+ // Dibujar solo resultados
+ dibujarMarcadores(resultado);
+ construirHeatmap(resultado);
+ actualizarContador(resultado);
+ actualizarEstadisticas(resultado);
+
+ if(heatmapActivo){
+   heatmap.setMap(map);
+ }
+
+ // Centrar mapa
+ map.setCenter({lat:resultado[0].lat, lng:resultado[0].lng});
+ map.setZoom(resultado.length===1 ? 15 : 12);
 }
+
+// Permitir ENTER
+document.getElementById("buscador").addEventListener("keyup", function(e){
+ if(e.key==="Enter") buscar();
+});
 
 // ===== RESET =====
 function resetFiltros(){
@@ -328,11 +356,13 @@ function resetFiltros(){
 }
 </script>
 
-<!-- Google Maps con librería Heatmap -->
+<!-- Google Maps -->
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb1xIG3Iks&libraries=visualization&callback=initMap" async defer></script>
 
 </body>
 </html>
+
+
 
 
 

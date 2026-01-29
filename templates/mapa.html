@@ -304,28 +304,30 @@ function actualizarEstadisticas(lista){
   "<br><b>Total general: "+lista.length+"</b>";
 }
 
-// ===== 🔎 BUSCADOR CORREGIDO =====
+// ===== 🔎 BUSCADOR DEFINITIVO =====
 function buscar(){
- let texto = document.getElementById("buscador").value.trim().toLowerCase();
- if(texto===""){
+ let texto = document.getElementById("buscador").value
+              .trim()
+              .toLowerCase();
+
+ if(texto === ""){
    resetFiltros();
    return;
  }
 
- // Coincidencias por código exacto
- let porCodigo = datos.filter(d => d.codigo.toLowerCase() === texto);
+ // Buscar coincidencias en código o razón social
+ let resultado = datos.filter(d => {
+   let codigo = String(d.codigo).trim().toLowerCase();
+   let razon  = String(d.razon).trim().toLowerCase();
+   return codigo.includes(texto) || razon.includes(texto);
+ });
 
- // Coincidencias por razón social parcial
- let porRazon = datos.filter(d => d.razon.toLowerCase().includes(texto));
-
- let resultado = porCodigo.length>0 ? porCodigo : porRazon;
-
- if(resultado.length===0){
+ if(resultado.length === 0){
    alert("No se encontraron coincidencias");
    return;
  }
 
- // Dibujar solo resultados
+ // Dibujar resultados como si fuera un filtro
  dibujarMarcadores(resultado);
  construirHeatmap(resultado);
  actualizarContador(resultado);
@@ -335,14 +337,14 @@ function buscar(){
    heatmap.setMap(map);
  }
 
- // Centrar mapa
- map.setCenter({lat:resultado[0].lat, lng:resultado[0].lng});
- map.setZoom(resultado.length===1 ? 15 : 12);
+ // Centrar mapa en primer resultado
+ map.setCenter({lat: resultado[0].lat, lng: resultado[0].lng});
+ map.setZoom(resultado.length === 1 ? 15 : 12);
 }
 
-// Permitir ENTER
+// ===== ENTER PARA BUSCAR =====
 document.getElementById("buscador").addEventListener("keyup", function(e){
- if(e.key==="Enter") buscar();
+ if(e.key === "Enter") buscar();
 });
 
 // ===== RESET =====
@@ -361,6 +363,7 @@ function resetFiltros(){
 
 </body>
 </html>
+
 
 
 

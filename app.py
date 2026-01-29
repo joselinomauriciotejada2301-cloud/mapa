@@ -31,6 +31,8 @@ def cargar_datos():
 
     df["lat"] = pd.to_numeric(df["lat"], errors="coerce")
     df["lng"] = pd.to_numeric(df["lng"], errors="coerce")
+    df["capacidad"] = pd.to_numeric(df["capacidad"], errors="coerce").fillna(1)
+
     df = df.dropna(subset=["lat", "lng"])
 
     return df.fillna("").to_dict(orient="records")
@@ -46,6 +48,8 @@ def datos():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
+
 
 
 

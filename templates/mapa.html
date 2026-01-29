@@ -17,7 +17,7 @@ body{margin:0;font-family:Arial;}
     border-radius:8px;
     box-shadow:2px 2px 6px #999;
     font-size:13px;
-    width:320px;
+    width:330px;
 }
 
 .panel select, .panel input, .panel button{
@@ -45,11 +45,12 @@ body{margin:0;font-family:Arial;}
 
 <hr>
 
-<b>🎛️ Filtros</b>
+<b>🎛️ Filtros (Ctrl + click múltiple)</b>
 <select id="f_estado" multiple></select>
 <select id="f_actividad" multiple></select>
 <select id="f_provincia" multiple></select>
 <select id="f_distrito" multiple></select>
+
 <button onclick="resetFiltros()">Limpiar filtros</button>
 
 <hr>
@@ -76,7 +77,47 @@ let heatmap;
 let heatmapActivo=false;
 let filtroTimeout=null;
 
-// ===== MAP INIT =====
+// ===== LISTA ACTIVIDADES + COLORES =====
+const actividadesInfo = {
+"030":"030-REFINERIAS TOPPING","034":"034-PLANTAS LUBRICANTES Y GRASAS",
+"040":"040-PLANTA DE ABASTECIMIENTO DE COMBUSTIBLES LIQUIDOS",
+"050":"050-ESTACIÓN DE SERVICIOS / GRIFOS",
+"051":"051-CONSUMIDOR DIRECTO DE COMBUSTIBLE LÍQUIDO HASTA 5 MB",
+"052":"052-CONSUMIDOR DIRECTO DE COMBUSTIBLE LÍQUIDO DE 5 A 50 MB",
+"053":"053-CONSUMIDOR DIRECTO DE COMBUSTIBLE LÍQUIDO MAYOR A 50 MB",
+"056":"056-ESTACIÓN DE SERVICIO CON GASOCENTRO DE GLP",
+"070":"070-PLANTAS ENVASADORAS GLP","071":"071-GASOCENTROS DE GLP",
+"074":"074-LOCALES DE VENTA GLP ≤ 5000 KG","078":"078-LOCALES DE VENTA GLP > 5000 KG",
+"101":"101-CONSUMIDOR DIRECTO DE GNV","102":"102-ESTABLECIMIENTO DE VENTA DE GNV",
+"106":"106-EE.SS CON GNV","107":"107-EE.SS CON GLP Y GNV",
+"112":"112-CONSUMIDOR DIRECTO OPDH HASTA 5 MB","114":"114-CONSUMIDOR DIRECTO OPDH DE 5 A 50 MB",
+"115":"115-CONSUMIDORES DIRECTOS OTROS DERIVADOS","190":"190-ESTABLECIMIENTO GNV SISTEMA INTEGRADO",
+"300":"300-PROCESO GNL","320":"320-GASOCENTRO GLP + VENTA GNV",
+"400":"400-CONSUMIDOR DIRECTO GLP ≤1000 GLN","401":"401-CONSUMIDOR DIRECTO GLP >1000 GLN",
+"600":"600-RED GLP ≤1000 GLN","601":"601-RED GLP >1000 GLN",
+"607":"607-ESTACIÓN COMPRESIÓN GN","613":"613-ESTACIÓN CARGA GNL",
+"618":"618-ESTACIÓN CARGA GNC","975":"975-CONSUMIDOR DIRECTO INST. ESTRATÉGICAS",
+"982":"982-CONSUMIDOR DIRECTO INST. ESTRATÉGICAS GLP >1000",
+"983":"983-CONSUMIDOR DIRECTO INST. ESTRATÉGICAS TEMP",
+"984":"984-CONSUMIDOR DIRECTO INST. ESTRATÉGICAS GLP ≤1000"
+};
+
+function colorActividad(act){
+ let c = act.substring(0,3);
+ const colores = {
+  "030":"#8e44ad","034":"#9b59b6","040":"#2980b9","050":"orange",
+  "051":"#f39c12","052":"#d35400","053":"#e67e22","056":"blue",
+  "070":"#16a085","071":"red","074":"#27ae60","078":"#2ecc71",
+  "101":"#1abc9c","102":"green","106":"darkgreen","107":"violet",
+  "112":"#7f8c8d","114":"#95a5a6","115":"#34495e","190":"#c0392b",
+  "300":"#6c3483","320":"brown","400":"#f1c40f","401":"#f39c12",
+  "600":"#2980b9","601":"#1f618d","607":"#17a589","613":"#48c9b0",
+  "618":"#45b39d","975":"#922b21","982":"#641e16","983":"#7b241c","984":"#943126"
+ };
+ return colores[c] || "black";
+}
+
+// ===== INIT MAP =====
 function initMap(){
  map = new google.maps.Map(document.getElementById("map"), {
    center:{lat:-12.05,lng:-77.05},
@@ -90,24 +131,22 @@ function initMap(){
    cargarFiltros();
    dibujarMarcadores(datos);
    construirHeatmap(datos);
-
-   document.getElementById("contador").innerHTML =
-    "Total registros: <b>"+datos.length+"</b>";
+   actualizarContador(datos);
  });
 }
 
-// ===== CREAR HEATMAP =====
+// ===== HEATMAP =====
 function construirHeatmap(lista){
  let puntos = lista.map(d => ({
    location: new google.maps.LatLng(d.lat, d.lng),
    weight: Math.sqrt(d.capacidad || 1)
  }));
 
- if(heatmap){ heatmap.setMap(null); }
+ if(heatmap) heatmap.setMap(null);
 
  heatmap = new google.maps.visualization.HeatmapLayer({
    data: puntos,
-   radius: 35
+   radius: 40
  });
 }
 
@@ -118,13 +157,13 @@ function toggleHeatmap(){
  if(heatmapActivo){
    heatmap.setMap(map);
    marcadores.forEach(m=>m.setMap(null));
- } else {
+ }else{
    heatmap.setMap(null);
    marcadores.forEach(m=>m.setMap(map));
  }
 }
 
-// ===== MARCADORES POR LOTES =====
+// ===== DIBUJO DE MARCADORES POR LOTES =====
 function dibujarMarcadores(lista){
  marcadores.forEach(m=>m.setMap(null));
  marcadores=[];
@@ -138,22 +177,38 @@ function dibujarMarcadores(lista){
 
      let marker=new google.maps.Marker({
        position:{lat:d.lat,lng:d.lng},
-       map:map
+       map: map,
+       icon:{
+         path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+         scale:5,
+         fillColor: colorActividad(d.actividad),
+         fillOpacity:1,
+         strokeWeight:1
+       }
      });
 
      let info=new google.maps.InfoWindow({
-       content:`<b>${d.razon}</b><br>
-       Código: ${d.codigo}<br>
-       Capacidad: ${d.capacidad}`
+       content:
+       `<b>${d.razon}</b><br>
+        Código: ${d.codigo}<br>
+        Registro: ${d.registro}<br>
+        Estado: ${d.estado}<br>
+        Capacidad: ${d.capacidad}<br>
+        Última fiscalización: ${d.fiscalizacion}`
      });
 
      marker.addListener("click",()=>info.open(map,marker));
      marcadores.push(marker);
    }
-
    if(i<lista.length) requestAnimationFrame(crearLote);
  }
  crearLote();
+}
+
+// ===== CONTADOR =====
+function actualizarContador(lista){
+ document.getElementById("contador").innerHTML =
+  "Total registros: <b>"+lista.length+"</b>";
 }
 
 // ===== FILTROS =====
@@ -186,6 +241,7 @@ function valores(id){
   .map(o=>o.value);
 }
 
+// ===== APLICAR FILTROS =====
 function aplicarFiltros(){
  let est=valores("f_estado");
  let act=valores("f_actividad");
@@ -201,10 +257,51 @@ function aplicarFiltros(){
 
  dibujarMarcadores(filtrados);
  construirHeatmap(filtrados);
+ actualizarContador(filtrados);
+ actualizarEstadisticas(filtrados);
 
  if(heatmapActivo){
    heatmap.setMap(map);
- } 
+ }
+}
+
+// ===== ESTADISTICAS DINAMICAS =====
+function actualizarEstadisticas(lista){
+ let panel=document.getElementById("panelStats");
+
+ if(lista.length===datos.length){
+   panel.style.display="none";
+   return;
+ }
+ panel.style.display="block";
+
+ let porAct={};
+ lista.forEach(d=>{
+   let c=d.actividad.substring(0,3);
+   porAct[c]=(porAct[c]||0)+1;
+ });
+
+ let htmlAct="<b>📌 Por Actividad</b><br>";
+ for(let c in porAct){
+   let nombre = actividadesInfo[c] || c;
+   let color = colorActividad(c);
+   htmlAct+=`<span style="color:${color}">■</span> ${nombre}: ${porAct[c]}<br>`;
+ }
+ document.getElementById("stats_actividad").innerHTML=htmlAct;
+
+ let porDist={};
+ lista.forEach(d=>{
+   porDist[d.distrito]=(porDist[d.distrito]||0)+1;
+ });
+
+ let htmlDist="<br><b>🏘️ Por Distrito</b><br>";
+ for(let d in porDist){
+   htmlDist+=`${d}: ${porDist[d]}<br>`;
+ }
+ document.getElementById("stats_geo").innerHTML=htmlDist;
+
+ document.getElementById("stats_total").innerHTML =
+  "<br><b>Total general: "+lista.length+"</b>";
 }
 
 // ===== BUSCADOR =====
@@ -225,18 +322,19 @@ function resetFiltros(){
  document.querySelectorAll("select").forEach(s=>s.selectedIndex=-1);
  dibujarMarcadores(datos);
  construirHeatmap(datos);
+ actualizarContador(datos);
+ document.getElementById("panelStats").style.display="none";
  if(heatmapActivo) heatmap.setMap(map);
-
- document.getElementById("contador").innerHTML =
-  "Total registros: <b>"+datos.length+"</b>";
 }
 </script>
 
-<!-- 🔑 Reemplaza TU_API_KEY por tu API Key -->
+<!-- Google Maps con librería Heatmap -->
 <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb1xIG3Iks&libraries=visualization&callback=initMap" async defer></script>
 
 </body>
 </html>
+
+
 
 
 

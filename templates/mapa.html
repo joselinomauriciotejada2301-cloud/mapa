@@ -18,14 +18,30 @@ html, body { height:100%; margin:0; font-family:Arial; }
  width:100%; margin-bottom:6px;
 }
 
-.panel select{
- appearance: menulist;
- height:28px;
-}
+.panel select{ height:28px; }
 
 .stats{
  margin-top:8px; font-size:12px;
  max-height:250px; overflow:auto; display:none;
+}
+
+.legend{
+ margin-top:8px;
+ font-size:12px;
+ max-height:180px;
+ overflow:auto;
+ border-top:1px solid #ddd;
+ padding-top:6px;
+}
+.legend-item{
+ display:flex;
+ align-items:center;
+ margin-bottom:3px;
+}
+.legend-color{
+ width:14px;
+ height:14px;
+ margin-right:6px;
 }
 </style>
 </head>
@@ -58,6 +74,8 @@ html, body { height:100%; margin:0; font-family:Arial; }
 <div id="stats_geo"></div>
 <div id="stats_total"></div>
 </div>
+
+<div class="legend" id="leyenda"></div>
 </div>
 
 <div id="map"></div>
@@ -65,20 +83,20 @@ html, body { height:100%; margin:0; font-family:Arial; }
 <script>
 let map, datos=[], marcadores=[], heatmap;
 let heatmapActivo=false;
+let modoBusqueda=false;
 
 /* ========= COLORES POR ACTIVIDAD ========= */
-const paletaColores = [
+const paletaColores=[
  "#e74c3c","#3498db","#2ecc71","#f1c40f","#9b59b6",
  "#1abc9c","#e67e22","#34495e","#d35400","#16a085",
  "#7f8c8d","#c0392b","#27ae60","#2980b9"
 ];
-
-const colorActividadMap = {};
+const colorActividadMap={};
 
 function colorPorActividad(act){
  if(!colorActividadMap[act]){
-  const idx = Object.keys(colorActividadMap).length % paletaColores.length;
-  colorActividadMap[act] = paletaColores[idx];
+  const idx=Object.keys(colorActividadMap).length%paletaColores.length;
+  colorActividadMap[act]=paletaColores[idx];
  }
  return colorActividadMap[act];
 }
@@ -96,6 +114,7 @@ function initMap(){
   construirHeatmap(datos);
   actualizarContador(datos);
   ocultarMarcadores();
+  construirLeyenda(datos);
  });
 }
 
@@ -106,9 +125,7 @@ function construirHeatmap(lista){
   weight:Math.sqrt(d.capacidad||1)
  }));
  if(heatmap) heatmap.setMap(null);
- heatmap=new google.maps.visualization.HeatmapLayer({
-  data:puntos, radius:40
- });
+ heatmap=new google.maps.visualization.HeatmapLayer({data:puntos,radius:40});
  if(heatmapActivo) heatmap.setMap(map);
 }
 
@@ -123,21 +140,31 @@ function toggleHeatmap(){
  }
 }
 
-/* ===== MARCADORES (ÚNICO CAMBIO REAL AQUÍ) ===== */
+/* ===== MARCADORES ===== */
 function dibujarMarcadores(lista){
  marcadores.forEach(m=>m.setMap(null));
  marcadores=[];
  lista.forEach(d=>{
+  let icono = modoBusqueda
+   ? {
+      path:google.maps.SymbolPath.STAR,
+      scale:7,
+      fillColor:"#e74c3c",
+      fillOpacity:1,
+      strokeWeight:1
+     }
+   : {
+      path:google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+      scale:5,
+      fillColor:colorPorActividad(d.actividad),
+      fillOpacity:1,
+      strokeWeight:1
+     };
+
   let marker=new google.maps.Marker({
    position:{lat:d.lat,lng:d.lng},
    map:map,
-   icon:{
-    path:google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-    scale:5,
-    fillColor: colorPorActividad(d.actividad),
-    fillOpacity:1,
-    strokeWeight:1
-   }
+   icon:icono
   });
 
   let info=new google.maps.InfoWindow({
@@ -148,8 +175,7 @@ function dibujarMarcadores(lista){
    Distrito: ${d.distrito}<br>
    Estado: ${d.estado}<br>
    Capacidad: ${d.capacidad}<br>
-   Última fiscalización: ${d.fiscalizacion}
-   `
+   Última fiscalización: ${d.fiscalizacion}`
   });
 
   marker.addListener("click",()=>info.open(map,marker));
@@ -172,97 +198,77 @@ function cargarFiltros(){
  llenar("f_provincia","provincia");
  llenar("f_distrito","distrito");
 }
-
 function llenar(id,campo){
  let s=document.getElementById(id); s.innerHTML="";
  [...new Set(datos.map(d=>d[campo]))].sort().forEach(v=>{
-  if(v){
-   let o=document.createElement("option");
-   o.value=v; o.text=v; s.add(o);
-  }
+  if(v){ let o=document.createElement("option"); o.value=v;o.text=v;s.add(o); }
  });
  s.onchange=aplicarFiltros;
 }
-
 function valores(id){
  return Array.from(document.getElementById(id).selectedOptions).map(o=>o.value);
 }
 
 /* ===== APLICAR FILTROS ===== */
 function aplicarFiltros(){
+ modoBusqueda=false;
  let f=datos.filter(d=>
   (valores("f_estado").length==0||valores("f_estado").includes(d.estado)) &&
   (valores("f_actividad").length==0||valores("f_actividad").includes(d.actividad)) &&
   (valores("f_provincia").length==0||valores("f_provincia").includes(d.provincia)) &&
   (valores("f_distrito").length==0||valores("f_distrito").includes(d.distrito))
  );
-
  dibujarMarcadores(f);
  construirHeatmap(f);
  actualizarContador(f);
  actualizarEstadisticas(f);
-
- if(f.length>0) mostrarMarcadores();
- else ocultarMarcadores();
+ construirLeyenda(f);
+ if(f.length>0) mostrarMarcadores(); else ocultarMarcadores();
 }
 
-/* ===== ESTADISTICAS ===== */
-function actualizarEstadisticas(lista){
- let panel=document.getElementById("panelStats");
- if(lista.length===datos.length){ panel.style.display="none"; return; }
- panel.style.display="block";
-
- let porAct={};
- lista.forEach(d=>porAct[d.actividad]=(porAct[d.actividad]||0)+1);
-
- let html="<b>📌 Por Actividad</b><br>";
- for(let a in porAct) html+=`■ ${a}: ${porAct[a]}<br>`;
- document.getElementById("stats_actividad").innerHTML=html;
-
- let porDist={};
- lista.forEach(d=>porDist[d.distrito]=(porDist[d.distrito]||0)+1);
- let hd="<br><b>🏘️ Por Distrito</b><br>";
- for(let d in porDist) hd+=`${d}: ${porDist[d]}<br>`;
- document.getElementById("stats_geo").innerHTML=hd;
-
- document.getElementById("stats_total").innerHTML=
- `<br><b>Total general: ${lista.length}</b>`;
-}
-
-/* ===== CONTADOR ===== */
-function actualizarContador(lista){
- document.getElementById("contador").innerHTML=
- "Total registros: <b>"+lista.length+"</b>";
+/* ===== LEYENDA ===== */
+function construirLeyenda(lista){
+ let l=document.getElementById("leyenda");
+ l.innerHTML="<b>🎨 Leyenda</b><br>";
+ let acts=[...new Set(lista.map(d=>d.actividad))];
+ acts.forEach(a=>{
+  l.innerHTML+=`
+  <div class="legend-item">
+   <div class="legend-color" style="background:${colorPorActividad(a)}"></div>
+   ${a}
+  </div>`;
+ });
 }
 
 /* ===== BUSCADOR ===== */
 function buscar(){
  let t=document.getElementById("buscador").value.toLowerCase().trim();
  if(!t){ resetFiltros(); return; }
-
+ modoBusqueda=true;
  let r=datos.filter(d=>
   String(d.codigo).toLowerCase().includes(t) ||
   String(d.razon).toLowerCase().includes(t)
  );
-
  if(!r.length){ alert("No se encontraron coincidencias"); return; }
-
  dibujarMarcadores(r);
  mostrarMarcadores();
  construirHeatmap(r);
  actualizarContador(r);
  actualizarEstadisticas(r);
+ construirLeyenda(r);
  map.setCenter({lat:r[0].lat,lng:r[0].lng});
  map.setZoom(r.length==1?15:12);
 }
 
 /* ===== RESET ===== */
 function resetFiltros(){
+ modoBusqueda=false;
  document.querySelectorAll("select").forEach(s=>s.selectedIndex=-1);
  dibujarMarcadores(datos);
  construirHeatmap(datos);
  actualizarContador(datos);
  document.getElementById("panelStats").style.display="none";
+ construirLeyenda(datos);
  ocultarMarcadores();
 }
 </script>
@@ -273,6 +279,8 @@ src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb
 
 </body>
 </html>
+
+
 
 
 

@@ -18,11 +18,6 @@ html, body { height:100%; margin:0; font-family:Arial; }
  width:100%; margin-bottom:6px;
 }
 
-.panel select{
- appearance: menulist;
- height:28px;
-}
-
 .stats{
  margin-top:8px; font-size:12px;
  max-height:250px; overflow:auto; display:none;
@@ -39,11 +34,11 @@ html, body { height:100%; margin:0; font-family:Arial; }
 
 <hr>
 
-<b>🎛️ Filtros (Ctrl / Shift múltiple)</b>
-<select id="f_estado" multiple size="1"></select>
-<select id="f_actividad" multiple size="1"></select>
-<select id="f_provincia" multiple size="1"></select>
-<select id="f_distrito" multiple size="1"></select>
+<b>🎛️ Filtros</b>
+<select id="f_estado" multiple></select>
+<select id="f_actividad" multiple></select>
+<select id="f_provincia" multiple></select>
+<select id="f_distrito" multiple></select>
 
 <button onclick="resetFiltros()">Limpiar filtros</button>
 
@@ -65,6 +60,22 @@ html, body { height:100%; margin:0; font-family:Arial; }
 <script>
 let map, datos=[], marcadores=[], heatmap;
 let heatmapActivo=false;
+
+/* ===== PALETA DE COLORES POR ACTIVIDAD ===== */
+const colores=[
+ "#e6194B","#3cb44b","#4363d8","#f58231","#911eb4",
+ "#46f0f0","#f032e6","#bcf60c","#fabebe","#008080",
+ "#e6beff","#9a6324","#fffac8","#800000","#aaffc3"
+];
+
+const mapaColores={};
+
+function colorPorActividad(act){
+ if(!mapaColores[act]){
+  mapaColores[act]=colores[Object.keys(mapaColores).length % colores.length];
+ }
+ return mapaColores[act];
+}
 
 /* ===== MAPA ===== */
 function initMap(){
@@ -97,13 +108,8 @@ function construirHeatmap(lista){
 
 function toggleHeatmap(){
  heatmapActivo=!heatmapActivo;
- if(heatmapActivo){
-  heatmap.setMap(map);
-  if(!hayFiltros()) ocultarMarcadores();
- }else{
-  heatmap.setMap(null);
-  if(hayFiltros()) mostrarMarcadores();
- }
+ heatmap.setMap(heatmapActivo?map:null);
+ if(!hayFiltros()) ocultarMarcadores();
 }
 
 /* ===== MARCADORES ===== */
@@ -117,7 +123,7 @@ function dibujarMarcadores(lista){
    icon:{
     path:google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
     scale:5,
-    fillColor:"#333",
+    fillColor:colorPorActividad(d.actividad),
     fillOpacity:1,
     strokeWeight:1
    }
@@ -134,6 +140,7 @@ function dibujarMarcadores(lista){
    Última fiscalización: ${d.fiscalizacion}
    `
   });
+
   marker.addListener("click",()=>info.open(map,marker));
   marcadores.push(marker);
  });
@@ -158,7 +165,7 @@ function cargarFiltros(){
 function llenar(id,campo){
  let s=document.getElementById(id); s.innerHTML="";
  [...new Set(datos.map(d=>d[campo]))].sort().forEach(v=>{
-  if(v){ let o=document.createElement("option"); o.value=v;o.text=v;s.add(o); }
+  let o=document.createElement("option"); o.value=v;o.text=v;s.add(o);
  });
  s.onchange=aplicarFiltros;
 }
@@ -167,7 +174,7 @@ function valores(id){
  return Array.from(document.getElementById(id).selectedOptions).map(o=>o.value);
 }
 
-/* ===== APLICAR FILTROS ===== */
+/* ===== FILTRADO ===== */
 function aplicarFiltros(){
  let f=datos.filter(d=>
   (valores("f_estado").length==0||valores("f_estado").includes(d.estado)) &&
@@ -192,18 +199,15 @@ function actualizarEstadisticas(lista){
  panel.style.display="block";
 
  let porAct={};
- lista.forEach(d=>{
-  porAct[d.actividad]=(porAct[d.actividad]||0)+1;
- });
+ lista.forEach(d=>porAct[d.actividad]=(porAct[d.actividad]||0)+1);
 
- let html="<b>📌 Por Actividad</b><br>";
- for(let a in porAct){
-  html+=`■ ${a}: ${porAct[a]}<br>`;
- }
- document.getElementById("stats_actividad").innerHTML=html;
+ let h="<b>📌 Por Actividad</b><br>";
+ for(let a in porAct) h+=`■ ${a}: ${porAct[a]}<br>`;
+ document.getElementById("stats_actividad").innerHTML=h;
 
  let porDist={};
  lista.forEach(d=>porDist[d.distrito]=(porDist[d.distrito]||0)+1);
+
  let hd="<br><b>🏘️ Por Distrito</b><br>";
  for(let d in porDist) hd+=`${d}: ${porDist[d]}<br>`;
  document.getElementById("stats_geo").innerHTML=hd;
@@ -256,6 +260,7 @@ src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb
 
 </body>
 </html>
+
 
 
 

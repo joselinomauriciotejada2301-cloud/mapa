@@ -66,22 +66,6 @@ html, body { height:100%; margin:0; font-family:Arial; }
 let map, datos=[], marcadores=[], heatmap;
 let heatmapActivo=false;
 
-/* ===== ACTIVIDADES + COLORES ===== */
-const actividadesInfo = {
- "030":"030-REFINERIAS TOPPING","034":"034-PLANTAS LUBRICANTES",
- "040":"040-PLANTA ABASTECIMIENTO","050":"050-GRIFOS",
- "071":"071-GASOCENTROS GLP","102":"102-VENTA GNV"
-};
-
-function colorActividad(act){
- const c = act.substring(0,3);
- const col={
-  "030":"#8e44ad","034":"#9b59b6","040":"#2980b9",
-  "050":"orange","071":"red","102":"green"
- };
- return col[c] || "black";
-}
-
 /* ===== MAPA ===== */
 function initMap(){
  map=new google.maps.Map(document.getElementById("map"),{
@@ -133,7 +117,7 @@ function dibujarMarcadores(lista){
    icon:{
     path:google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
     scale:5,
-    fillColor:colorActividad(d.actividad),
+    fillColor:"#333",
     fillOpacity:1,
     strokeWeight:1
    }
@@ -144,7 +128,6 @@ function dibujarMarcadores(lista){
    <b>${d.razon}</b><br>
    Código: ${d.codigo}<br>
    Registro: ${d.registro}<br>
-   Actividad: ${d.actividad}<br>
    Distrito: ${d.distrito}<br>
    Estado: ${d.estado}<br>
    Capacidad: ${d.capacidad}<br>
@@ -210,14 +193,12 @@ function actualizarEstadisticas(lista){
 
  let porAct={};
  lista.forEach(d=>{
-  let c=d.actividad.substring(0,3);
-  porAct[c]=(porAct[c]||0)+1;
+  porAct[d.actividad]=(porAct[d.actividad]||0)+1;
  });
 
  let html="<b>📌 Por Actividad</b><br>";
- for(let c in porAct){
-  html+=`<span style="color:${colorActividad(c)}">■</span>
-  ${actividadesInfo[c]||c}: ${porAct[c]}<br>`;
+ for(let a in porAct){
+  html+=`■ ${a}: ${porAct[a]}<br>`;
  }
  document.getElementById("stats_actividad").innerHTML=html;
 
@@ -275,6 +256,7 @@ src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb
 
 </body>
 </html>
+
 
 
 

@@ -25,20 +25,15 @@ html, body { height:100%; margin:0; font-family:Arial; }
  max-height:250px; overflow:auto; display:none;
 }
 
-.legend{
- margin-top:8px;
- font-size:12px;
-}
-.legend-item{
- display:flex;
- align-items:center;
- margin-bottom:4px;
-}
-.legend-color{
- width:14px;
- height:14px;
+/* Se mantiene el CSS pero NO se usará */
+.legend{ display:none; }
+
+.color-box{
+ display:inline-block;
+ width:10px;
+ height:10px;
  margin-right:6px;
- border-radius:3px;
+ border-radius:2px;
 }
 </style>
 </head>
@@ -72,7 +67,6 @@ html, body { height:100%; margin:0; font-family:Arial; }
  <div id="stats_total"></div>
 </div>
 
-<div class="legend" id="leyenda"></div>
 </div>
 
 <div id="map"></div>
@@ -91,7 +85,7 @@ const colorActividadMap={};
 
 function colorPorActividad(act){
  if(!colorActividadMap[act]){
-  const i=Object.keys(colorActividadMap).length%paletaColores.length;
+  const i=Object.keys(colorActividadMap).length % paletaColores.length;
   colorActividadMap[act]=paletaColores[i];
  }
  return colorActividadMap[act];
@@ -171,27 +165,10 @@ function dibujarMarcadores(lista){
   marker.addListener("click",()=>info.open(map,marker));
   marcadores.push(marker);
  });
-
- construirLeyenda(lista);
 }
 
 function ocultarMarcadores(){ marcadores.forEach(m=>m.setMap(null)); }
 function mostrarMarcadores(){ marcadores.forEach(m=>m.setMap(map)); }
-
-/* ===== LEYENDA ===== */
-function construirLeyenda(lista){
- let cont=document.getElementById("leyenda");
- let acts=[...new Set(lista.map(d=>d.actividad))];
- let html="<b>🎨 Leyenda</b><br>";
- acts.forEach(a=>{
-  html+=`
-   <div class="legend-item">
-    <div class="legend-color" style="background:${colorPorActividad(a)}"></div>
-    ${a}
-   </div>`;
- });
- cont.innerHTML=html;
-}
 
 /* ===== FILTROS ===== */
 function cargarFiltros(){
@@ -229,7 +206,7 @@ function aplicarFiltros(){
  f.length?mostrarMarcadores():ocultarMarcadores();
 }
 
-/* ===== ESTADISTICAS ===== */
+/* ===== ESTADISTICAS (COLOREADAS) ===== */
 function actualizarEstadisticas(lista){
  let panel=document.getElementById("panelStats");
  if(lista.length===datos.length){ panel.style.display="none"; return; }
@@ -239,7 +216,13 @@ function actualizarEstadisticas(lista){
  lista.forEach(d=>porAct[d.actividad]=(porAct[d.actividad]||0)+1);
 
  let html="<b>📌 Por Actividad</b><br>";
- for(let a in porAct) html+=`■ ${a}: ${porAct[a]}<br>`;
+ for(let a in porAct){
+  html+=`
+   <div>
+    <span class="color-box" style="background:${colorPorActividad(a)}"></span>
+    ${a}: ${porAct[a]}
+   </div>`;
+ }
  document.getElementById("stats_actividad").innerHTML=html;
 
  let porDist={};
@@ -299,6 +282,7 @@ src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb
 
 </body>
 </html>
+
 
 
 

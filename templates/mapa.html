@@ -1,46 +1,40 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
 <meta charset="utf-8">
 <title>Mapa OSINERGMIN</title>
 
 <style>
 html, body {
- height:100%;
- margin:0;
- padding:0;
- font-family: Arial, sans-serif;
+ height: 100%;
+ margin: 0;
+ font-family: Arial;
 }
-
 #map {
- height:100%;
- width:100%;
+ height: 100%;
 }
-
 .panel {
- position:absolute;
- top:10px;
- left:10px;
- z-index:5;
- background:#fff;
- padding:10px;
- border-radius:6px;
- width:300px;
- box-shadow:0 2px 6px rgba(0,0,0,.3);
- font-size:13px;
+ position: absolute;
+ top: 10px;
+ left: 10px;
+ z-index: 5;
+ background: white;
+ padding: 12px;
+ border-radius: 8px;
+ box-shadow: 2px 2px 6px #999;
+ font-size: 13px;
+ width: 330px;
 }
-
-.panel input,
-.panel select,
-.panel button {
- width:100%;
- margin-bottom:6px;
+.panel select, .panel input, .panel button {
+ width: 100%;
+ margin-bottom: 6px;
 }
-
 .stats {
- font-size:12px;
- max-height:200px;
- overflow:auto;
+ margin-top: 8px;
+ font-size: 12px;
+ max-height: 250px;
+ overflow: auto;
+ display: none;
 }
 </style>
 </head>
@@ -48,7 +42,6 @@ html, body {
 <body>
 
 <div class="panel">
-
 <b>🔎 Buscador</b>
 <input type="text" id="buscador" placeholder="Código o Razón Social">
 <button onclick="buscar()">Buscar</button>
@@ -60,7 +53,6 @@ html, body {
 <select id="f_actividad" multiple></select>
 <select id="f_provincia" multiple></select>
 <select id="f_distrito" multiple></select>
-
 <button onclick="resetFiltros()">Limpiar filtros</button>
 
 <hr>
@@ -69,125 +61,177 @@ html, body {
 <hr>
 <div id="contador"></div>
 
-<div class="stats">
- <div id="stats_actividad"></div>
- <div id="stats_geo"></div>
- <div id="stats_total"></div>
+<div class="stats" id="panelStats">
+<div id="stats_actividad"></div>
+<div id="stats_geo"></div>
+<div id="stats_total"></div>
 </div>
-
 </div>
 
 <div id="map"></div>
 
 <script>
-/* =====================================================
-   VARIABLES ORIGINALES (NO SE TOCAN)
-===================================================== */
 let map;
-let datos = [];
-let marcadores = [];
+let datos=[];
+let marcadores=[];
 let heatmap;
-let heatmapActivo = false;
+let heatmapActivo=false;
 
-/* =====================================================
-   FUNCIONES AUXILIARES (NUEVAS – NO ROMPEN NADA)
-===================================================== */
-
-// Ocultar todos los marcadores
-function ocultarMarcadores() {
- marcadores.forEach(m => m.setMap(null));
-}
-
-// Mostrar marcadores
-function mostrarMarcadores() {
- marcadores.forEach(m => m.setMap(map));
-}
-
-// Saber si hay filtros activos
-function hayFiltrosActivos() {
- return ["f_estado","f_actividad","f_provincia","f_distrito"]
-   .some(id => document.getElementById(id).selectedOptions.length > 0);
-}
-
-/* =====================================================
-   BUSCADOR (CORREGIDO Y FUNCIONAL)
-===================================================== */
-function buscar() {
-
- const texto = document.getElementById("buscador").value.trim().toLowerCase();
- if (texto === "") {
-   resetFiltros();
-   ocultarMarcadores();
-   return;
- }
-
- const resultados = datos.filter(d =>
-   String(d.codigo).toLowerCase().includes(texto) ||
-   String(d.razon).toLowerCase().includes(texto)
- );
-
- if (resultados.length === 0) {
-   alert("No se encontraron coincidencias");
-   return;
- }
-
- dibujarMarcadores(resultados);
- mostrarMarcadores();
-
- // Resaltar coincidencias
- marcadores.forEach(m => {
-   const d = resultados.find(r =>
-     r.lat === m.getPosition().lat() &&
-     r.lng === m.getPosition().lng()
-   );
-   if (d) {
-     m.setIcon({
-       path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-       scale: 6,
-       fillColor: "red",
-       fillOpacity: 1,
-       strokeWeight: 1
-     });
-   }
+/* ===== MAPA ===== */
+function initMap(){
+ map = new google.maps.Map(document.getElementById("map"), {
+   center:{lat:-12.05,lng:-77.05},
+   zoom:11
  });
 
- construirHeatmap(resultados);
- actualizarContador(resultados);
- actualizarEstadisticas(resultados);
+ fetch("/datos")
+ .then(r=>r.json())
+ .then(data=>{
+   datos=data;
+   cargarFiltros();
+   dibujarMarcadores(datos);
+   construirHeatmap(datos);
+   actualizarContador(datos);
 
- map.setCenter({lat: resultados[0].lat, lng: resultados[0].lng});
+   // 🔒 CLAVE: ocultar marcadores al inicio
+   ocultarMarcadores();
+ });
+}
+
+/* ===== OCULTAR / MOSTRAR ===== */
+function ocultarMarcadores(){
+ marcadores.forEach(m=>m.setMap(null));
+}
+function mostrarMarcadores(){
+ marcadores.forEach(m=>m.setMap(map));
+}
+function hayFiltros(){
+ return ["f_estado","f_actividad","f_provincia","f_distrito"]
+   .some(id => document.getElementById(id).selectedOptions.length>0);
+}
+
+/* ===== HEATMAP ===== */
+function construirHeatmap(lista){
+ let puntos = lista.map(d=>({
+   location:new google.maps.LatLng(d.lat,d.lng),
+   weight:Math.sqrt(d.capacidad||1)
+ }));
+ if(heatmap) heatmap.setMap(null);
+ heatmap = new google.maps.visualization.HeatmapLayer({
+   data:puntos,
+   radius:40
+ });
+ if(heatmapActivo) heatmap.setMap(map);
+}
+
+function toggleHeatmap(){
+ heatmapActivo=!heatmapActivo;
+ if(heatmapActivo){
+   heatmap.setMap(map);
+   ocultarMarcadores();
+ }else{
+   heatmap.setMap(null);
+   if(hayFiltros()) mostrarMarcadores();
+ }
+}
+
+/* ===== MARCADORES ===== */
+function dibujarMarcadores(lista){
+ marcadores.forEach(m=>m.setMap(null));
+ marcadores=[];
+ lista.forEach(d=>{
+   let marker=new google.maps.Marker({
+     position:{lat:d.lat,lng:d.lng},
+     map:map,
+     icon:{
+       path:google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+       scale:5,
+       fillColor:"blue",
+       fillOpacity:1,
+       strokeWeight:1
+     }
+   });
+   marcadores.push(marker);
+ });
+}
+
+/* ===== CONTADOR ===== */
+function actualizarContador(lista){
+ document.getElementById("contador").innerHTML=
+ "Total registros: <b>"+lista.length+"</b>";
+}
+
+/* ===== FILTROS ===== */
+function cargarFiltros(){
+ llenar("f_estado","estado");
+ llenar("f_actividad","actividad");
+ llenar("f_provincia","provincia");
+ llenar("f_distrito","distrito");
+}
+function llenar(id,campo){
+ let sel=document.getElementById(id);
+ sel.innerHTML="";
+ [...new Set(datos.map(d=>d[campo]))].sort().forEach(v=>{
+   if(v){
+     let o=document.createElement("option");
+     o.value=v; o.text=v; sel.add(o);
+   }
+ });
+ sel.onchange=aplicarFiltros;
+}
+function valores(id){
+ return Array.from(document.getElementById(id).selectedOptions)
+ .map(o=>o.value);
+}
+function aplicarFiltros(){
+ let f=datos.filter(d=>
+  (valores("f_estado").length==0 || valores("f_estado").includes(d.estado)) &&
+  (valores("f_actividad").length==0 || valores("f_actividad").includes(d.actividad)) &&
+  (valores("f_provincia").length==0 || valores("f_provincia").includes(d.provincia)) &&
+  (valores("f_distrito").length==0 || valores("f_distrito").includes(d.distrito))
+ );
+ dibujarMarcadores(f);
+ construirHeatmap(f);
+ actualizarContador(f);
+ document.getElementById("panelStats").style.display="block";
+ if(hayFiltros()) mostrarMarcadores();
+}
+
+/* ===== BUSCADOR ===== */
+function buscar(){
+ let t=document.getElementById("buscador").value.toLowerCase();
+ if(!t){ resetFiltros(); return; }
+ let r=datos.filter(d=>
+  String(d.codigo).toLowerCase().includes(t) ||
+  String(d.razon).toLowerCase().includes(t)
+ );
+ if(!r.length){ alert("Sin resultados"); return; }
+ dibujarMarcadores(r);
+ mostrarMarcadores();
+ construirHeatmap(r);
+ actualizarContador(r);
+ map.setCenter({lat:r[0].lat,lng:r[0].lng});
  map.setZoom(14);
 }
 
-/* =====================================================
-   INTERCEPCIÓN SEGURA DE FILTROS
-===================================================== */
-const _aplicarFiltros = aplicarFiltros;
-aplicarFiltros = function() {
- _aplicarFiltros();
-
- if (hayFiltrosActivos()) {
-   mostrarMarcadores();
- } else {
-   ocultarMarcadores();
- }
-};
-
-/* =====================================================
-   AL TERMINAR DE CARGAR → OCULTAR MARCADORES
-===================================================== */
-window.addEventListener("load", () => {
- setTimeout(() => ocultarMarcadores(), 800);
-});
+/* ===== RESET ===== */
+function resetFiltros(){
+ document.querySelectorAll("select").forEach(s=>s.selectedIndex=-1);
+ dibujarMarcadores(datos);
+ construirHeatmap(datos);
+ actualizarContador(datos);
+ ocultarMarcadores();
+}
 </script>
 
-<!-- GOOGLE MAPS -->
 <script async defer
- src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb1xIG3Iks&libraries=visualization,geometry&callback=initMap">
+src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb1xIG3Iks&libraries=visualization&callback=initMap">
 </script>
 
 </body>
 </html>
+
+
 
 
 

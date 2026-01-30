@@ -5,36 +5,27 @@
 <title>Mapa OSINERGMIN</title>
 
 <style>
-html, body {
- height: 100%;
- margin: 0;
- font-family: Arial;
+html, body { height:100%; margin:0; font-family:Arial; }
+#map { height:100%; }
+
+.panel{
+ position:absolute; top:10px; left:10px; z-index:5;
+ background:white; padding:12px; border-radius:8px;
+ box-shadow:2px 2px 6px #999; width:330px; font-size:13px;
 }
-#map {
- height: 100%;
+
+.panel select, .panel input, .panel button{
+ width:100%; margin-bottom:6px;
 }
-.panel {
- position: absolute;
- top: 10px;
- left: 10px;
- z-index: 5;
- background: white;
- padding: 12px;
- border-radius: 8px;
- box-shadow: 2px 2px 6px #999;
- font-size: 13px;
- width: 330px;
+
+.panel select{
+ appearance: menulist;
+ height:28px;
 }
-.panel select, .panel input, .panel button {
- width: 100%;
- margin-bottom: 6px;
-}
-.stats {
- margin-top: 8px;
- font-size: 12px;
- max-height: 250px;
- overflow: auto;
- display: none;
+
+.stats{
+ margin-top:8px; font-size:12px;
+ max-height:250px; overflow:auto; display:none;
 }
 </style>
 </head>
@@ -48,11 +39,12 @@ html, body {
 
 <hr>
 
-<b>🎛️ Filtros</b>
-<select id="f_estado" multiple></select>
-<select id="f_actividad" multiple></select>
-<select id="f_provincia" multiple></select>
-<select id="f_distrito" multiple></select>
+<b>🎛️ Filtros (Ctrl / Shift múltiple)</b>
+<select id="f_estado" multiple size="1"></select>
+<select id="f_actividad" multiple size="1"></select>
+<select id="f_provincia" multiple size="1"></select>
+<select id="f_distrito" multiple size="1"></select>
+
 <button onclick="resetFiltros()">Limpiar filtros</button>
 
 <hr>
@@ -71,55 +63,48 @@ html, body {
 <div id="map"></div>
 
 <script>
-let map;
-let datos=[];
-let marcadores=[];
-let heatmap;
+let map, datos=[], marcadores=[], heatmap;
 let heatmapActivo=false;
+
+/* ===== ACTIVIDADES + COLORES ===== */
+const actividadesInfo = {
+ "050":"050-ESTACIÓN DE SERVICIOS / GRIFOS",
+ "071":"071-GASOCENTROS DE GLP",
+ "102":"102-VENTA GNV"
+};
+function colorActividad(act){
+ const c = act.substring(0,3);
+ const col={
+  "050":"orange","071":"red","102":"green"
+ };
+ return col[c] || "blue";
+}
 
 /* ===== MAPA ===== */
 function initMap(){
- map = new google.maps.Map(document.getElementById("map"), {
-   center:{lat:-12.05,lng:-77.05},
-   zoom:11
+ map=new google.maps.Map(document.getElementById("map"),{
+  center:{lat:-12.05,lng:-77.05}, zoom:11
  });
 
- fetch("/datos")
- .then(r=>r.json())
- .then(data=>{
-   datos=data;
-   cargarFiltros();
-   dibujarMarcadores(datos);
-   construirHeatmap(datos);
-   actualizarContador(datos);
-
-   // 🔒 CLAVE: ocultar marcadores al inicio
-   ocultarMarcadores();
+ fetch("/datos").then(r=>r.json()).then(d=>{
+  datos=d;
+  cargarFiltros();
+  dibujarMarcadores(datos);
+  construirHeatmap(datos);
+  actualizarContador(datos);
+  ocultarMarcadores();
  });
-}
-
-/* ===== OCULTAR / MOSTRAR ===== */
-function ocultarMarcadores(){
- marcadores.forEach(m=>m.setMap(null));
-}
-function mostrarMarcadores(){
- marcadores.forEach(m=>m.setMap(map));
-}
-function hayFiltros(){
- return ["f_estado","f_actividad","f_provincia","f_distrito"]
-   .some(id => document.getElementById(id).selectedOptions.length>0);
 }
 
 /* ===== HEATMAP ===== */
 function construirHeatmap(lista){
- let puntos = lista.map(d=>({
-   location:new google.maps.LatLng(d.lat,d.lng),
-   weight:Math.sqrt(d.capacidad||1)
+ let puntos=lista.map(d=>({
+  location:new google.maps.LatLng(d.lat,d.lng),
+  weight:Math.sqrt(d.capacidad||1)
  }));
  if(heatmap) heatmap.setMap(null);
- heatmap = new google.maps.visualization.HeatmapLayer({
-   data:puntos,
-   radius:40
+ heatmap=new google.maps.visualization.HeatmapLayer({
+  data:puntos, radius:40
  });
  if(heatmapActivo) heatmap.setMap(map);
 }
@@ -127,11 +112,11 @@ function construirHeatmap(lista){
 function toggleHeatmap(){
  heatmapActivo=!heatmapActivo;
  if(heatmapActivo){
-   heatmap.setMap(map);
-   ocultarMarcadores();
+  heatmap.setMap(map);
+  ocultarMarcadores();
  }else{
-   heatmap.setMap(null);
-   if(hayFiltros()) mostrarMarcadores();
+  heatmap.setMap(null);
+  if(hayFiltros()) mostrarMarcadores();
  }
 }
 
@@ -140,25 +125,36 @@ function dibujarMarcadores(lista){
  marcadores.forEach(m=>m.setMap(null));
  marcadores=[];
  lista.forEach(d=>{
-   let marker=new google.maps.Marker({
-     position:{lat:d.lat,lng:d.lng},
-     map:map,
-     icon:{
-       path:google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-       scale:5,
-       fillColor:"blue",
-       fillOpacity:1,
-       strokeWeight:1
-     }
-   });
-   marcadores.push(marker);
+  let marker=new google.maps.Marker({
+   position:{lat:d.lat,lng:d.lng},
+   map:map,
+   icon:{
+    path:google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+    scale:5,
+    fillColor:colorActividad(d.actividad),
+    fillOpacity:1,
+    strokeWeight:1
+   }
+  });
+
+  let info=new google.maps.InfoWindow({
+   content:`<b>${d.razon}</b><br>
+   Código: ${d.codigo}<br>
+   Actividad: ${d.actividad}<br>
+   Distrito: ${d.distrito}<br>
+   Estado: ${d.estado}`
+  });
+  marker.addListener("click",()=>info.open(map,marker));
+  marcadores.push(marker);
  });
 }
 
-/* ===== CONTADOR ===== */
-function actualizarContador(lista){
- document.getElementById("contador").innerHTML=
- "Total registros: <b>"+lista.length+"</b>";
+/* ===== VISIBILIDAD ===== */
+function ocultarMarcadores(){ marcadores.forEach(m=>m.setMap(null)); }
+function mostrarMarcadores(){ marcadores.forEach(m=>m.setMap(map)); }
+function hayFiltros(){
+ return ["f_estado","f_actividad","f_provincia","f_distrito"]
+ .some(id=>document.getElementById(id).selectedOptions.length>0);
 }
 
 /* ===== FILTROS ===== */
@@ -169,32 +165,56 @@ function cargarFiltros(){
  llenar("f_distrito","distrito");
 }
 function llenar(id,campo){
- let sel=document.getElementById(id);
- sel.innerHTML="";
+ let s=document.getElementById(id); s.innerHTML="";
  [...new Set(datos.map(d=>d[campo]))].sort().forEach(v=>{
-   if(v){
-     let o=document.createElement("option");
-     o.value=v; o.text=v; sel.add(o);
-   }
+  if(v){ let o=document.createElement("option"); o.value=v;o.text=v;s.add(o);}
  });
- sel.onchange=aplicarFiltros;
+ s.onchange=aplicarFiltros;
 }
 function valores(id){
- return Array.from(document.getElementById(id).selectedOptions)
- .map(o=>o.value);
+ return Array.from(document.getElementById(id).selectedOptions).map(o=>o.value);
 }
+
+/* ===== APLICAR FILTROS ===== */
 function aplicarFiltros(){
  let f=datos.filter(d=>
-  (valores("f_estado").length==0 || valores("f_estado").includes(d.estado)) &&
-  (valores("f_actividad").length==0 || valores("f_actividad").includes(d.actividad)) &&
-  (valores("f_provincia").length==0 || valores("f_provincia").includes(d.provincia)) &&
-  (valores("f_distrito").length==0 || valores("f_distrito").includes(d.distrito))
+  (valores("f_estado").length==0||valores("f_estado").includes(d.estado)) &&
+  (valores("f_actividad").length==0||valores("f_actividad").includes(d.actividad)) &&
+  (valores("f_provincia").length==0||valores("f_provincia").includes(d.provincia)) &&
+  (valores("f_distrito").length==0||valores("f_distrito").includes(d.distrito))
  );
  dibujarMarcadores(f);
  construirHeatmap(f);
  actualizarContador(f);
- document.getElementById("panelStats").style.display="block";
- if(hayFiltros()) mostrarMarcadores();
+ actualizarEstadisticas(f);
+ mostrarMarcadores();
+}
+
+/* ===== ESTADISTICAS ===== */
+function actualizarEstadisticas(lista){
+ let p=document.getElementById("panelStats");
+ p.style.display="block";
+
+ let porAct={};
+ lista.forEach(d=>{
+  let c=d.actividad.substring(0,3);
+  porAct[c]=(porAct[c]||0)+1;
+ });
+
+ let html="<b>📌 Por Actividad</b><br>";
+ for(let c in porAct){
+  html+=`<span style="color:${colorActividad(c)}">■</span>
+  ${actividadesInfo[c]||c}: ${porAct[c]}<br>`;
+ }
+ document.getElementById("stats_actividad").innerHTML=html;
+
+ let porDist={};
+ lista.forEach(d=>porDist[d.distrito]=(porDist[d.distrito]||0)+1);
+ let hd="<br><b>🏘️ Por Distrito</b><br>";
+ for(let d in porDist) hd+=`${d}: ${porDist[d]}<br>`;
+ document.getElementById("stats_geo").innerHTML=hd;
+ document.getElementById("stats_total").innerHTML=
+ `<br><b>Total general: ${lista.length}</b>`;
 }
 
 /* ===== BUSCADOR ===== */
@@ -205,13 +225,14 @@ function buscar(){
   String(d.codigo).toLowerCase().includes(t) ||
   String(d.razon).toLowerCase().includes(t)
  );
- if(!r.length){ alert("Sin resultados"); return; }
+ if(!r.length){ alert("No se encontraron coincidencias"); return; }
  dibujarMarcadores(r);
  mostrarMarcadores();
  construirHeatmap(r);
  actualizarContador(r);
+ actualizarEstadisticas(r);
  map.setCenter({lat:r[0].lat,lng:r[0].lng});
- map.setZoom(14);
+ map.setZoom(r.length==1?15:12);
 }
 
 /* ===== RESET ===== */
@@ -220,6 +241,7 @@ function resetFiltros(){
  dibujarMarcadores(datos);
  construirHeatmap(datos);
  actualizarContador(datos);
+ document.getElementById("panelStats").style.display="none";
  ocultarMarcadores();
 }
 </script>
@@ -230,6 +252,8 @@ src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb
 
 </body>
 </html>
+
+
 
 
 

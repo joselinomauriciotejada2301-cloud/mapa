@@ -25,7 +25,6 @@ html, body { height:100%; margin:0; font-family:Arial; }
  max-height:250px; overflow:auto; display:none;
 }
 
-/* Se mantiene el CSS pero NO se usará */
 .legend{ display:none; }
 
 .color-box{
@@ -206,7 +205,7 @@ function aplicarFiltros(){
  f.length?mostrarMarcadores():ocultarMarcadores();
 }
 
-/* ===== ESTADISTICAS (COLOREADAS) ===== */
+/* ===== ESTADISTICAS (ORDENADAS POR CANTIDAD) ===== */
 function actualizarEstadisticas(lista){
  let panel=document.getElementById("panelStats");
  if(lista.length===datos.length){ panel.style.display="none"; return; }
@@ -215,14 +214,18 @@ function actualizarEstadisticas(lista){
  let porAct={};
  lista.forEach(d=>porAct[d.actividad]=(porAct[d.actividad]||0)+1);
 
+ /* 🔥 ORDENAR DE MAYOR A MENOR */
+ let actividadesOrdenadas = Object.entries(porAct)
+  .sort((a,b)=>b[1]-a[1]);
+
  let html="<b>📌 Por Actividad</b><br>";
- for(let a in porAct){
+ actividadesOrdenadas.forEach(([act,cant])=>{
   html+=`
    <div>
-    <span class="color-box" style="background:${colorPorActividad(a)}"></span>
-    ${a}: ${porAct[a]}
+    <span class="color-box" style="background:${colorPorActividad(act)}"></span>
+    ${act}: ${cant}
    </div>`;
- }
+ });
  document.getElementById("stats_actividad").innerHTML=html;
 
  let porDist={};
@@ -282,6 +285,8 @@ src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb
 
 </body>
 </html>
+
+
 
 
 

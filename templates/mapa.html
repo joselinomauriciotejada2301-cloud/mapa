@@ -1,257 +1,218 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-<meta charset="utf-8">
-<title>Mapa OSINERGMIN</title>
+  <meta charset="UTF-8">
+  <title>Mapa Interactivo OSINERGMIN</title>
 
-<style>
-html, body { height:100%; margin:0; font-family:Arial; }
-#map { height:100%; }
+  <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb1xIG3Iks&libraries=visualization"></script>
 
-.panel{
- position:absolute; top:10px; left:10px; z-index:5;
- background:white; padding:12px; border-radius:8px;
- box-shadow:2px 2px 6px #999; width:330px; font-size:13px;
-}
-
-.panel select, .panel input, .panel button{
- width:100%; margin-bottom:6px;
-}
-
-.panel select{
- appearance: menulist;
- height:28px;
-}
-
-.stats{
- margin-top:8px; font-size:12px;
- max-height:250px; overflow:auto; display:none;
-}
-</style>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; }
+    #map { height: 100vh; width: 75%; float: right; }
+    #panel {
+      width: 25%;
+      height: 100vh;
+      float: left;
+      overflow-y: auto;
+      padding: 10px;
+      background: #f5f5f5;
+    }
+    select, input, button {
+      width: 100%;
+      margin-bottom: 8px;
+      padding: 6px;
+    }
+    .legend {
+      background: white;
+      padding: 10px;
+      margin-top: 10px;
+      border-radius: 6px;
+    }
+    .legend-item {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+  </style>
 </head>
 
 <body>
 
-<div class="panel">
-<b>🔎 Buscador</b>
-<input type="text" id="buscador" placeholder="Código o Razón Social">
-<button onclick="buscar()">Buscar</button>
+<div id="panel">
+  <h3>Filtros</h3>
 
-<hr>
+  <input type="text" id="searchInput" placeholder="Buscar por código o razón social">
 
-<b>🎛️ Filtros (Ctrl / Shift múltiple)</b>
-<select id="f_estado" multiple size="1"></select>
-<select id="f_actividad" multiple size="1"></select>
-<select id="f_provincia" multiple size="1"></select>
-<select id="f_distrito" multiple size="1"></select>
+  <select id="actividadFilter" multiple></select>
+  <select id="distritoFilter" multiple></select>
+  <select id="provinciaFilter" multiple></select>
 
-<button onclick="resetFiltros()">Limpiar filtros</button>
+  <button onclick="toggleHeatmap()">Mapa de calor</button>
 
-<hr>
-<button onclick="toggleHeatmap()">🔥 Activar / Desactivar Mapa de Calor</button>
+  <h4>Total de registros: <span id="totalCount">0</span></h4>
 
-<hr>
-<div id="contador"></div>
-
-<div class="stats" id="panelStats">
-<div id="stats_actividad"></div>
-<div id="stats_geo"></div>
-<div id="stats_total"></div>
-</div>
+  <div class="legend" id="legend"></div>
 </div>
 
 <div id="map"></div>
 
 <script>
-let map, datos=[], marcadores=[], heatmap;
-let heatmapActivo=false;
+let map;
+let markers = [];
+let heatmap;
+let data = []; // ← aquí se carga tu JSON desde GitHub
+let heatmapVisible = false;
 
-/* ===== ACTIVIDADES + COLORES ===== */
-const actividadesInfo = {
- "050":"050-ESTACIÓN DE SERVICIOS / GRIFOS",
- "071":"071-GASOCENTROS DE GLP",
- "102":"102-VENTA GNV"
-};
-function colorActividad(act){
- const c = act.substring(0,3);
- const col={
-  "050":"orange","071":"red","102":"green"
- };
- return col[c] || "blue";
-}
-
-/* ===== MAPA ===== */
-function initMap(){
- map=new google.maps.Map(document.getElementById("map"),{
-  center:{lat:-12.05,lng:-77.05}, zoom:11
- });
-
- fetch("/datos").then(r=>r.json()).then(d=>{
-  datos=d;
-  cargarFiltros();
-  dibujarMarcadores(datos);
-  construirHeatmap(datos);
-  actualizarContador(datos);
-  ocultarMarcadores();
- });
-}
-
-/* ===== HEATMAP ===== */
-function construirHeatmap(lista){
- let puntos=lista.map(d=>({
-  location:new google.maps.LatLng(d.lat,d.lng),
-  weight:Math.sqrt(d.capacidad||1)
- }));
- if(heatmap) heatmap.setMap(null);
- heatmap=new google.maps.visualization.HeatmapLayer({
-  data:puntos, radius:40
- });
- if(heatmapActivo) heatmap.setMap(map);
-}
-
-function toggleHeatmap(){
- heatmapActivo=!heatmapActivo;
- if(heatmapActivo){
-  heatmap.setMap(map);
-  ocultarMarcadores();
- }else{
-  heatmap.setMap(null);
-  if(hayFiltros()) mostrarMarcadores();
- }
-}
-
-/* ===== MARCADORES ===== */
-function dibujarMarcadores(lista){
- marcadores.forEach(m=>m.setMap(null));
- marcadores=[];
- lista.forEach(d=>{
-  let marker=new google.maps.Marker({
-   position:{lat:d.lat,lng:d.lng},
-   map:map,
-   icon:{
-    path:google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-    scale:5,
-    fillColor:colorActividad(d.actividad),
-    fillOpacity:1,
-    strokeWeight:1
-   }
+function initMap() {
+  map = new google.maps.Map(document.getElementById("map"), {
+    center: { lat: -12.0464, lng: -77.0428 },
+    zoom: 6
   });
 
-  let info=new google.maps.InfoWindow({
-   content:`<b>${d.razon}</b><br>
-   Código: ${d.codigo}<br>
-   Actividad: ${d.actividad}<br>
-   Distrito: ${d.distrito}<br>
-   Estado: ${d.estado}`
+  fetch("data.json")
+    .then(res => res.json())
+    .then(json => {
+      data = json;
+      populateFilters();
+      updateHeatmap();
+      updateCounters(data);
+    });
+}
+
+function populateFilters() {
+  const actividad = new Set();
+  const distrito = new Set();
+  const provincia = new Set();
+
+  data.forEach(d => {
+    actividad.add(d.actividad);
+    distrito.add(d.distrito);
+    provincia.add(d.provincia);
   });
-  marker.addListener("click",()=>info.open(map,marker));
-  marcadores.push(marker);
- });
+
+  fillSelect("actividadFilter", actividad);
+  fillSelect("distritoFilter", distrito);
+  fillSelect("provinciaFilter", provincia);
 }
 
-/* ===== VISIBILIDAD ===== */
-function ocultarMarcadores(){ marcadores.forEach(m=>m.setMap(null)); }
-function mostrarMarcadores(){ marcadores.forEach(m=>m.setMap(map)); }
-function hayFiltros(){
- return ["f_estado","f_actividad","f_provincia","f_distrito"]
- .some(id=>document.getElementById(id).selectedOptions.length>0);
+function fillSelect(id, values) {
+  const select = document.getElementById(id);
+  values.forEach(v => {
+    const opt = document.createElement("option");
+    opt.value = v;
+    opt.textContent = v;
+    select.appendChild(opt);
+  });
 }
 
-/* ===== FILTROS ===== */
-function cargarFiltros(){
- llenar("f_estado","estado");
- llenar("f_actividad","actividad");
- llenar("f_provincia","provincia");
- llenar("f_distrito","distrito");
-}
-function llenar(id,campo){
- let s=document.getElementById(id); s.innerHTML="";
- [...new Set(datos.map(d=>d[campo]))].sort().forEach(v=>{
-  if(v){ let o=document.createElement("option"); o.value=v;o.text=v;s.add(o);}
- });
- s.onchange=aplicarFiltros;
-}
-function valores(id){
- return Array.from(document.getElementById(id).selectedOptions).map(o=>o.value);
+function getSelectedValues(id) {
+  return [...document.getElementById(id).selectedOptions].map(o => o.value);
 }
 
-/* ===== APLICAR FILTROS ===== */
-function aplicarFiltros(){
- let f=datos.filter(d=>
-  (valores("f_estado").length==0||valores("f_estado").includes(d.estado)) &&
-  (valores("f_actividad").length==0||valores("f_actividad").includes(d.actividad)) &&
-  (valores("f_provincia").length==0||valores("f_provincia").includes(d.provincia)) &&
-  (valores("f_distrito").length==0||valores("f_distrito").includes(d.distrito))
- );
- dibujarMarcadores(f);
- construirHeatmap(f);
- actualizarContador(f);
- actualizarEstadisticas(f);
- mostrarMarcadores();
+function applyFilters() {
+  clearMarkers();
+
+  const actividades = getSelectedValues("actividadFilter");
+  const distritos = getSelectedValues("distritoFilter");
+  const provincias = getSelectedValues("provinciaFilter");
+  const search = document.getElementById("searchInput").value.toLowerCase();
+
+  const filtersActive = actividades.length || distritos.length || provincias.length || search;
+
+  let filtered = data.filter(d =>
+    (!actividades.length || actividades.includes(d.actividad)) &&
+    (!distritos.length || distritos.includes(d.distrito)) &&
+    (!provincias.length || provincias.includes(d.provincia)) &&
+    (!search || d.codigo.toLowerCase().includes(search) || d.razon_social.toLowerCase().includes(search))
+  );
+
+  document.getElementById("totalCount").innerText = filtered.length;
+
+  if (filtersActive) {
+    filtered.forEach(d => createMarker(d, search));
+  }
+
+  updateLegend(filtered);
 }
 
-/* ===== ESTADISTICAS ===== */
-function actualizarEstadisticas(lista){
- let p=document.getElementById("panelStats");
- p.style.display="block";
+function createMarker(d, search) {
+  const highlight = search &&
+    (d.codigo.toLowerCase().includes(search) || d.razon_social.toLowerCase().includes(search));
 
- let porAct={};
- lista.forEach(d=>{
-  let c=d.actividad.substring(0,3);
-  porAct[c]=(porAct[c]||0)+1;
- });
+  const marker = new google.maps.Marker({
+    position: { lat: d.lat, lng: d.lng },
+    map,
+    icon: highlight
+      ? "http://maps.google.com/mapfiles/ms/icons/yellow-arrow.png"
+      : d.icon
+  });
 
- let html="<b>📌 Por Actividad</b><br>";
- for(let c in porAct){
-  html+=`<span style="color:${colorActividad(c)}">■</span>
-  ${actividadesInfo[c]||c}: ${porAct[c]}<br>`;
- }
- document.getElementById("stats_actividad").innerHTML=html;
+  const info = `
+    <b>${d.razon_social}</b><br>
+    Código: ${d.codigo}<br>
+    Actividad: ${d.actividad}<br>
+    Distrito: ${d.distrito}<br>
+    Provincia: ${d.provincia}<br>
+    Capacidad: ${d.capacidad}<br>
+    Última fiscalización: ${d.ultima_fiscalizacion}
+  `;
 
- let porDist={};
- lista.forEach(d=>porDist[d.distrito]=(porDist[d.distrito]||0)+1);
- let hd="<br><b>🏘️ Por Distrito</b><br>";
- for(let d in porDist) hd+=`${d}: ${porDist[d]}<br>`;
- document.getElementById("stats_geo").innerHTML=hd;
- document.getElementById("stats_total").innerHTML=
- `<br><b>Total general: ${lista.length}</b>`;
+  marker.addListener("click", () => {
+    new google.maps.InfoWindow({ content: info }).open(map, marker);
+  });
+
+  markers.push(marker);
 }
 
-/* ===== BUSCADOR ===== */
-function buscar(){
- let t=document.getElementById("buscador").value.toLowerCase();
- if(!t){ resetFiltros(); return; }
- let r=datos.filter(d=>
-  String(d.codigo).toLowerCase().includes(t) ||
-  String(d.razon).toLowerCase().includes(t)
- );
- if(!r.length){ alert("No se encontraron coincidencias"); return; }
- dibujarMarcadores(r);
- mostrarMarcadores();
- construirHeatmap(r);
- actualizarContador(r);
- actualizarEstadisticas(r);
- map.setCenter({lat:r[0].lat,lng:r[0].lng});
- map.setZoom(r.length==1?15:12);
+function clearMarkers() {
+  markers.forEach(m => m.setMap(null));
+  markers = [];
 }
 
-/* ===== RESET ===== */
-function resetFiltros(){
- document.querySelectorAll("select").forEach(s=>s.selectedIndex=-1);
- dibujarMarcadores(datos);
- construirHeatmap(datos);
- actualizarContador(datos);
- document.getElementById("panelStats").style.display="none";
- ocultarMarcadores();
+function toggleHeatmap() {
+  heatmapVisible = !heatmapVisible;
+  if (heatmap) heatmap.setMap(heatmapVisible ? map : null);
 }
-</script>
 
-<script async defer
-src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb1xIG3Iks&libraries=visualization&callback=initMap">
+function updateHeatmap() {
+  const points = data.map(d =>
+    new google.maps.LatLng(d.lat, d.lng)
+  );
+  heatmap = new google.maps.visualization.HeatmapLayer({
+    data: points,
+    radius: 25
+  });
+}
+
+function updateLegend(filtered) {
+  const legend = document.getElementById("legend");
+  legend.innerHTML = "<h4>Estadísticas</h4>";
+
+  const counts = {};
+  filtered.forEach(d => {
+    counts[d.actividad] = (counts[d.actividad] || 0) + 1;
+  });
+
+  Object.entries(counts).forEach(([act, count]) => {
+    legend.innerHTML += `
+      <div class="legend-item">
+        <span>${act}</span>
+        <b>${count}</b>
+      </div>`;
+  });
+}
+
+document.querySelectorAll("select, input").forEach(el =>
+  el.addEventListener("change", applyFilters)
+);
+
+window.onload = initMap;
 </script>
 
 </body>
 </html>
+
+
 
 
 

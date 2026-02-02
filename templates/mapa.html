@@ -100,8 +100,8 @@ function initMap(){
  fetch("/datos").then(r=>r.json()).then(d=>{
   datos=d.map(x=>{
    if(x.fiscalizacion){
-    let partes=x.fiscalizacion.split("/");
-    x._anioFiscalizacion = partes[2];
+    const match = String(x.fiscalizacion).match(/\b(19|20)\d{2}\b/);
+    x._anioFiscalizacion = match ? match[0] : null;
    }
    return x;
   });
@@ -190,15 +190,13 @@ function cargarFiltros(){
   s.onchange=aplicarFiltros;
  });
 
- /* FILTRO POR AÑO */
  let s=document.getElementById("f_anio");
  [...new Set(datos.map(d=>d._anioFiscalizacion))]
+  .filter(Boolean)
   .sort((a,b)=>b-a)
   .forEach(v=>{
-   if(v){
-    let o=document.createElement("option");
-    o.value=v;o.text=v;s.add(o);
-   }
+   let o=document.createElement("option");
+   o.value=v;o.text=v;s.add(o);
   });
  s.onchange=aplicarFiltros;
 }
@@ -305,6 +303,8 @@ src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb
 
 </body>
 </html>
+
+
 
 
 

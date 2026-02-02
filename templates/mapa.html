@@ -51,7 +51,7 @@ html, body { height:100%; margin:0; font-family:Arial; }
 <select id="f_actividad" multiple size="1"></select>
 <select id="f_provincia" multiple size="1"></select>
 <select id="f_distrito" multiple size="1"></select>
-<select id="f_fiscalizacion" multiple size="1"></select>
+<select id="f_anio" multiple size="1"></select>
 
 <button onclick="resetFiltros()">Limpiar filtros</button>
 
@@ -98,7 +98,14 @@ function initMap(){
  });
 
  fetch("/datos").then(r=>r.json()).then(d=>{
-  datos=d;
+  datos=d.map(x=>{
+   if(x.fiscalizacion){
+    let partes=x.fiscalizacion.split("/");
+    x._anioFiscalizacion = partes[2];
+   }
+   return x;
+  });
+
   cargarFiltros();
   dibujarMarcadores(datos);
   construirHeatmap(datos);
@@ -172,7 +179,7 @@ function mostrarMarcadores(){ marcadores.forEach(m=>m.setMap(map)); }
 
 /* ===== FILTROS ===== */
 function cargarFiltros(){
- ["estado","actividad","provincia","distrito","fiscalizacion"].forEach(c=>{
+ ["estado","actividad","provincia","distrito"].forEach(c=>{
   let s=document.getElementById("f_"+c);
   [...new Set(datos.map(d=>d[c]))].sort().forEach(v=>{
    if(v){
@@ -182,6 +189,18 @@ function cargarFiltros(){
   });
   s.onchange=aplicarFiltros;
  });
+
+ /* FILTRO POR AÑO */
+ let s=document.getElementById("f_anio");
+ [...new Set(datos.map(d=>d._anioFiscalizacion))]
+  .sort((a,b)=>b-a)
+  .forEach(v=>{
+   if(v){
+    let o=document.createElement("option");
+    o.value=v;o.text=v;s.add(o);
+   }
+  });
+ s.onchange=aplicarFiltros;
 }
 
 function valores(id){
@@ -196,7 +215,7 @@ function aplicarFiltros(){
   (!valores("f_actividad").length||valores("f_actividad").includes(d.actividad)) &&
   (!valores("f_provincia").length||valores("f_provincia").includes(d.provincia)) &&
   (!valores("f_distrito").length||valores("f_distrito").includes(d.distrito)) &&
-  (!valores("f_fiscalizacion").length||valores("f_fiscalizacion").includes(d.fiscalizacion))
+  (!valores("f_anio").length||valores("f_anio").includes(d._anioFiscalizacion))
  );
 
  dibujarMarcadores(f);
@@ -286,6 +305,8 @@ src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb
 
 </body>
 </html>
+
+
 
 
 

@@ -51,6 +51,7 @@ html, body { height:100%; margin:0; font-family:Arial; }
 <select id="f_actividad" multiple size="1"></select>
 <select id="f_provincia" multiple size="1"></select>
 <select id="f_distrito" multiple size="1"></select>
+<select id="f_fiscalizacion" multiple size="1"></select>
 
 <button onclick="resetFiltros()">Limpiar filtros</button>
 
@@ -171,7 +172,7 @@ function mostrarMarcadores(){ marcadores.forEach(m=>m.setMap(map)); }
 
 /* ===== FILTROS ===== */
 function cargarFiltros(){
- ["estado","actividad","provincia","distrito"].forEach(c=>{
+ ["estado","actividad","provincia","distrito","fiscalizacion"].forEach(c=>{
   let s=document.getElementById("f_"+c);
   [...new Set(datos.map(d=>d[c]))].sort().forEach(v=>{
    if(v){
@@ -194,7 +195,8 @@ function aplicarFiltros(){
   (!valores("f_estado").length||valores("f_estado").includes(d.estado)) &&
   (!valores("f_actividad").length||valores("f_actividad").includes(d.actividad)) &&
   (!valores("f_provincia").length||valores("f_provincia").includes(d.provincia)) &&
-  (!valores("f_distrito").length||valores("f_distrito").includes(d.distrito))
+  (!valores("f_distrito").length||valores("f_distrito").includes(d.distrito)) &&
+  (!valores("f_fiscalizacion").length||valores("f_fiscalizacion").includes(d.fiscalizacion))
  );
 
  dibujarMarcadores(f);
@@ -205,7 +207,7 @@ function aplicarFiltros(){
  f.length?mostrarMarcadores():ocultarMarcadores();
 }
 
-/* ===== ESTADISTICAS (ORDENADAS POR CANTIDAD) ===== */
+/* ===== ESTADISTICAS ===== */
 function actualizarEstadisticas(lista){
  let panel=document.getElementById("panelStats");
  if(lista.length===datos.length){ panel.style.display="none"; return; }
@@ -214,7 +216,6 @@ function actualizarEstadisticas(lista){
  let porAct={};
  lista.forEach(d=>porAct[d.actividad]=(porAct[d.actividad]||0)+1);
 
- /* 🔥 ORDENAR DE MAYOR A MENOR */
  let actividadesOrdenadas = Object.entries(porAct)
   .sort((a,b)=>b[1]-a[1]);
 
@@ -285,6 +286,8 @@ src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb
 
 </body>
 </html>
+
+
 
 
 

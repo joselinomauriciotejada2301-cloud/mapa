@@ -34,6 +34,33 @@ html, body { height:100%; margin:0; font-family:Arial; }
  margin-right:6px;
  border-radius:2px;
 }
+
+/* ===== SLIDER DISTANCIA ===== */
+.distancia-box{
+ margin: 6px 0 10px 0;
+ padding: 8px;
+ border: 1px solid #ddd;
+ border-radius: 6px;
+ background: #fafafa;
+}
+
+.distancia-box label{
+ font-size: 12px;
+ font-weight: bold;
+ display:block;
+ margin-bottom: 6px;
+}
+
+.distancia-box input[type="range"]{
+ width:100%;
+}
+
+.distancia-valor{
+ font-size: 12px;
+ margin-top: 4px;
+ text-align:right;
+ font-weight:bold;
+}
 </style>
 </head>
 
@@ -43,6 +70,13 @@ html, body { height:100%; margin:0; font-family:Arial; }
 <b>🔎 Buscador</b>
 <input type="text" id="buscador" placeholder="Código o Razón Social">
 <button onclick="buscar()">Buscar</button>
+
+<!-- ===== REGULADOR DE DISTANCIA ===== -->
+<div class="distancia-box">
+ <label>📏 Radio de búsqueda (metros)</label>
+ <input type="range" id="sliderDistancia" min="100" max="1000" step="50" value="500" oninput="actualizarTextoDistancia()">
+ <div class="distancia-valor" id="txtDistancia">500 m</div>
+</div>
 
 <hr>
 
@@ -91,6 +125,36 @@ function colorPorActividad(act){
  return colorActividadMap[act];
 }
 
+/* ===== PIN ROJO PARA COINCIDENCIAS (COMO EN LA IMAGEN) ===== */
+function iconoPinRojo(){
+ return {
+  path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z",
+  fillColor: "#d93025",
+  fillOpacity: 1,
+  strokeColor: "#ffffff",
+  strokeWeight: 2,
+  scale: 1.6,
+  anchor: new google.maps.Point(12, 22)
+ };
+}
+
+/* ===== ICONO NORMAL POR ACTIVIDAD ===== */
+function iconoActividad(actividad){
+ return {
+  path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
+  scale: 5,
+  fillColor: colorPorActividad(actividad),
+  fillOpacity: 1,
+  strokeWeight: 1
+ };
+}
+
+/* ===== SLIDER ===== */
+function actualizarTextoDistancia(){
+ let v = document.getElementById("sliderDistancia").value;
+ document.getElementById("txtDistancia").innerText = v + " m";
+}
+
 /* ===== MAPA ===== */
 function initMap(){
  map=new google.maps.Map(document.getElementById("map"),{
@@ -111,6 +175,7 @@ function initMap(){
   construirHeatmap(datos);
   actualizarContador(datos);
   ocultarMarcadores();
+  actualizarTextoDistancia();
  });
 }
 
@@ -138,19 +203,7 @@ function dibujarMarcadores(lista){
  marcadores=[];
 
  lista.forEach(d=>{
-  let icono = modoBusqueda ? {
-   path:google.maps.SymbolPath.STAR,
-   scale:7,
-   fillColor:"#000",
-   fillOpacity:1,
-   strokeWeight:1
-  } : {
-   path:google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-   scale:5,
-   fillColor:colorPorActividad(d.actividad),
-   fillOpacity:1,
-   strokeWeight:1
-  };
+  let icono = modoBusqueda ? iconoPinRojo() : iconoActividad(d.actividad);
 
   let marker=new google.maps.Marker({
    position:{lat:d.lat,lng:d.lng},
@@ -268,7 +321,7 @@ function actualizarContador(lista){
  "Total registros: <b>"+lista.length+"</b>";
 }
 
-/* ===== BUSCADOR (COINCIDENCIAS + RADIO 500m) ===== */
+/* ===== BUSCADOR (COINCIDENCIAS + RADIO AJUSTABLE) ===== */
 function buscar(){
  let t=document.getElementById("buscador").value.toLowerCase().trim();
  if(!t){ resetFiltros(); return; }
@@ -284,8 +337,8 @@ function buscar(){
   return;
  }
 
- // 2) incluir todo lo que esté a 500m de cualquier coincidencia
- const radioMetros = 500;
+ // 2) radio desde slider
+ const radioMetros = parseInt(document.getElementById("sliderDistancia").value);
 
  function clave(d){
   return String(d.codigo || "") + "|" + String(d.registro || "") + "|" + String(d.lat) + "|" + String(d.lng);
@@ -296,7 +349,7 @@ function buscar(){
  // primero: agregar coincidencias
  coincidencias.forEach(d=>setIncluidos.set(clave(d), d));
 
- // luego: agregar vecinos a 500m
+ // luego: agregar vecinos dentro del radio
  datos.forEach(d=>{
   if(d.lat == null || d.lng == null) return;
 
@@ -317,23 +370,17 @@ function buscar(){
 
  let r = Array.from(setIncluidos.values());
 
- // 3) dibujar TODOS con icono normal (colores)
+ // 3) dibujar TODOS con icono normal por actividad
  modoBusqueda=false;
  dibujarMarcadores(r);
 
- // 4) cambiar SOLO coincidencias a estrella ⭐
+ // 4) cambiar SOLO coincidencias a PIN ROJO
  let clavesCoin = new Set(coincidencias.map(d=>clave(d)));
 
  marcadores.forEach((marker, i)=>{
   let d = r[i];
   if(clavesCoin.has(clave(d))){
-   marker.setIcon({
-    path:google.maps.SymbolPath.STAR,
-    scale:7,
-    fillColor:"#000",
-    fillOpacity:1,
-    strokeWeight:1
-   });
+   marker.setIcon(iconoPinRojo());
   }
  });
 

@@ -61,6 +61,36 @@ html, body { height:100%; margin:0; font-family:Arial; }
  text-align:right;
  font-weight:bold;
 }
+
+/* ===== MEDICION ===== */
+.medicion-box{
+ margin-top: 6px;
+ padding: 8px;
+ border: 1px solid #ddd;
+ border-radius: 6px;
+ background: #f7fbff;
+}
+
+.medicion-box b{
+ display:block;
+ margin-bottom:6px;
+}
+
+.medicion-dist{
+ font-size: 12px;
+ margin-top: 6px;
+ font-weight: bold;
+ text-align: right;
+}
+
+.btn-on{
+ background:#1a73e8;
+ color:white;
+ border:none;
+ padding:6px;
+ border-radius:6px;
+ cursor:pointer;
+}
 </style>
 </head>
 
@@ -91,6 +121,16 @@ html, body { height:100%; margin:0; font-family:Arial; }
 
 <hr>
 <button onclick="toggleHeatmap()">🔥 Activar / Desactivar Mapa de Calor</button>
+
+<hr>
+
+<!-- ===== MEDIR DISTANCIA ===== -->
+<div class="medicion-box">
+ <b>📏 Medir distancia</b>
+ <button id="btnMedir" onclick="toggleMedicion()">Activar medición</button>
+ <button onclick="limpiarMedicion()">🧹 Limpiar medición</button>
+ <div class="medicion-dist" id="txtMedicion">0 m</div>
+</div>
 
 <hr>
 <div id="contador"></div>
@@ -125,7 +165,7 @@ function colorPorActividad(act){
  return colorActividadMap[act];
 }
 
-/* ===== PIN ROJO PARA COINCIDENCIAS (COMO EN LA IMAGEN) ===== */
+/* ===== PIN ROJO PARA COINCIDENCIAS ===== */
 function iconoPinRojo(){
  return {
   path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z",
@@ -153,6 +193,121 @@ function iconoActividad(actividad){
 function actualizarTextoDistancia(){
  let v = document.getElementById("sliderDistancia").value;
  document.getElementById("txtDistancia").innerText = v + " m";
+}
+
+/* ==========================================================
+   📏 MEDICION DE DISTANCIA (TIPO GOOGLE MAPS)
+   ========================================================== */
+let medicionActiva=false;
+let puntosMedicion=[];
+let polylineMedicion=null;
+let marcadoresMedicion=[];
+let listenerClickMedicion=null;
+let listenerDblClickMedicion=null;
+
+function toggleMedicion(){
+ medicionActiva=!medicionActiva;
+
+ let btn=document.getElementById("btnMedir");
+ if(medicionActiva){
+  btn.innerText="Desactivar medición";
+  btn.classList.add("btn-on");
+  activarMedicion();
+ }else{
+  btn.innerText="Activar medición";
+  btn.classList.remove("btn-on");
+  desactivarMedicion();
+ }
+}
+
+function activarMedicion(){
+ // Click agrega puntos
+ listenerClickMedicion = map.addListener("click", (e)=>{
+  agregarPuntoMedicion(e.latLng);
+ });
+
+ // Doble click finaliza (sin zoom)
+ listenerDblClickMedicion = map.addListener("dblclick", (e)=>{
+  e.stop();
+  finalizarMedicion();
+ });
+}
+
+function desactivarMedicion(){
+ if(listenerClickMedicion) google.maps.event.removeListener(listenerClickMedicion);
+ if(listenerDblClickMedicion) google.maps.event.removeListener(listenerDblClickMedicion);
+ listenerClickMedicion=null;
+ listenerDblClickMedicion=null;
+}
+
+function agregarPuntoMedicion(latLng){
+ puntosMedicion.push(latLng);
+
+ // marcador pequeño
+ let m=new google.maps.Marker({
+  position: latLng,
+  map: map,
+  icon:{
+   path: google.maps.SymbolPath.CIRCLE,
+   scale: 5,
+   fillColor: "#1a73e8",
+   fillOpacity: 1,
+   strokeColor: "#ffffff",
+   strokeWeight: 2
+  }
+ });
+ marcadoresMedicion.push(m);
+
+ // crear polyline si no existe
+ if(!polylineMedicion){
+  polylineMedicion=new google.maps.Polyline({
+   map: map,
+   path: puntosMedicion,
+   strokeColor: "#1a73e8",
+   strokeOpacity: 1,
+   strokeWeight: 3
+  });
+ }else{
+  polylineMedicion.setPath(puntosMedicion);
+ }
+
+ actualizarDistanciaMedicion();
+}
+
+function actualizarDistanciaMedicion(){
+ if(puntosMedicion.length<2){
+  document.getElementById("txtMedicion").innerText="0 m";
+  return;
+ }
+
+ let total=0;
+ for(let i=1;i<puntosMedicion.length;i++){
+  total += google.maps.geometry.spherical.computeDistanceBetween(
+   puntosMedicion[i-1],
+   puntosMedicion[i]
+  );
+ }
+
+ // Formato m / km
+ if(total<1000){
+  document.getElementById("txtMedicion").innerText = total.toFixed(0) + " m";
+ }else{
+  document.getElementById("txtMedicion").innerText = (total/1000).toFixed(2) + " km";
+ }
+}
+
+function finalizarMedicion(){
+ // Solo congela la medición (no borra)
+ // El usuario puede seguir agregando puntos si quiere
+}
+
+function limpiarMedicion(){
+ puntosMedicion=[];
+ marcadoresMedicion.forEach(m=>m.setMap(null));
+ marcadoresMedicion=[];
+ if(polylineMedicion) polylineMedicion.setMap(null);
+ polylineMedicion=null;
+ document.getElementById("txtMedicion").innerText="0 m";
 }
 
 /* ===== MAPA ===== */
@@ -326,7 +481,6 @@ function buscar(){
  let t=document.getElementById("buscador").value.toLowerCase().trim();
  if(!t){ resetFiltros(); return; }
 
- // 1) coincidencias directas
  let coincidencias=datos.filter(d=>
   String(d.codigo).toLowerCase().includes(t) ||
   String(d.razon).toLowerCase().includes(t)
@@ -337,7 +491,6 @@ function buscar(){
   return;
  }
 
- // 2) radio desde slider
  const radioMetros = parseInt(document.getElementById("sliderDistancia").value);
 
  function clave(d){
@@ -345,11 +498,8 @@ function buscar(){
  }
 
  let setIncluidos = new Map();
-
- // primero: agregar coincidencias
  coincidencias.forEach(d=>setIncluidos.set(clave(d), d));
 
- // luego: agregar vecinos dentro del radio
  datos.forEach(d=>{
   if(d.lat == null || d.lng == null) return;
 
@@ -370,11 +520,9 @@ function buscar(){
 
  let r = Array.from(setIncluidos.values());
 
- // 3) dibujar TODOS con icono normal por actividad
  modoBusqueda=false;
  dibujarMarcadores(r);
 
- // 4) cambiar SOLO coincidencias a PIN ROJO
  let clavesCoin = new Set(coincidencias.map(d=>clave(d)));
 
  marcadores.forEach((marker, i)=>{
@@ -384,7 +532,6 @@ function buscar(){
   }
  });
 
- // 5) mantener el resto EXACTAMENTE igual
  mostrarMarcadores();
  construirHeatmap(r);
  actualizarContador(r);

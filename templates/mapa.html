@@ -268,7 +268,7 @@ function actualizarContador(lista){
  "Total registros: <b>"+lista.length+"</b>";
 }
 
-/* ===== BUSCADOR (COINCIDENCIAS + RADIO 100m) ===== */
+/* ===== BUSCADOR (COINCIDENCIAS + RADIO 500m) ===== */
 function buscar(){
  let t=document.getElementById("buscador").value.toLowerCase().trim();
  if(!t){ resetFiltros(); return; }
@@ -284,10 +284,9 @@ function buscar(){
   return;
  }
 
- // 2) incluir todo lo que esté a 100m de cualquier coincidencia
- const radioMetros = 100;
+ // 2) incluir todo lo que esté a 500m de cualquier coincidencia
+ const radioMetros = 500;
 
- // clave única segura (para no duplicar)
  function clave(d){
   return String(d.codigo || "") + "|" + String(d.registro || "") + "|" + String(d.lat) + "|" + String(d.lng);
  }
@@ -297,7 +296,7 @@ function buscar(){
  // primero: agregar coincidencias
  coincidencias.forEach(d=>setIncluidos.set(clave(d), d));
 
- // luego: agregar vecinos a 100m
+ // luego: agregar vecinos a 500m
  datos.forEach(d=>{
   if(d.lat == null || d.lng == null) return;
 

@@ -248,8 +248,15 @@ function actualizarEstadisticas(lista){
 
  let porDist={};
  lista.forEach(d=>porDist[d.distrito]=(porDist[d.distrito]||0)+1);
+
+ /* 🔥 ORDENAR DISTRITOS DE MAYOR A MENOR */
+ let distritosOrdenados = Object.entries(porDist)
+  .sort((a,b)=>b[1]-a[1]);
+
  let hd="<br><b>🏘️ Por Distrito</b><br>";
- for(let d in porDist) hd+=`${d}: ${porDist[d]}<br>`;
+ distritosOrdenados.forEach(([dist,cant])=>{
+  hd+=`${dist}: ${cant}<br>`;
+ });
  document.getElementById("stats_geo").innerHTML=hd;
 
  document.getElementById("stats_total").innerHTML=
@@ -303,6 +310,8 @@ src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb
 
 </body>
 </html>
+
+
 
 
 

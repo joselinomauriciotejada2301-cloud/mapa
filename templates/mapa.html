@@ -249,7 +249,6 @@ function actualizarEstadisticas(lista){
  let porDist={};
  lista.forEach(d=>porDist[d.distrito]=(porDist[d.distrito]||0)+1);
 
- /* 🔥 ORDENAR DISTRITOS DE MAYOR A MENOR */
  let distritosOrdenados = Object.entries(porDist)
   .sort((a,b)=>b[1]-a[1]);
 
@@ -269,27 +268,83 @@ function actualizarContador(lista){
  "Total registros: <b>"+lista.length+"</b>";
 }
 
-/* ===== BUSCADOR ===== */
+/* ===== BUSCADOR (CON RADIO 100m) ===== */
 function buscar(){
  let t=document.getElementById("buscador").value.toLowerCase().trim();
  if(!t){ resetFiltros(); return; }
 
- modoBusqueda=true;
-
- let r=datos.filter(d=>
+ // 1) coincidencias directas
+ let coincidencias=datos.filter(d=>
   String(d.codigo).toLowerCase().includes(t) ||
   String(d.razon).toLowerCase().includes(t)
  );
 
- if(!r.length){ alert("No se encontraron coincidencias"); return; }
+ if(!coincidencias.length){
+  alert("No se encontraron coincidencias");
+  return;
+ }
 
+ // 2) incluir cercanos a 100m de cada coincidencia
+ const radioMetros = 100;
+
+ let incluidos = new Map(); // clave: codigo o registro para evitar duplicados
+
+ function claveUnica(d){
+  return String(d.codigo || "") + "||" + String(d.registro || "") + "||" + String(d.lat) + "||" + String(d.lng);
+ }
+
+ // agregar coincidencias primero
+ coincidencias.forEach(d=>incluidos.set(claveUnica(d), d));
+
+ // buscar cercanos
+ datos.forEach(d=>{
+  if(d.lat == null || d.lng == null) return;
+
+  for(let c of coincidencias){
+   if(c.lat == null || c.lng == null) continue;
+
+   let dist = google.maps.geometry.spherical.computeDistanceBetween(
+    new google.maps.LatLng(d.lat, d.lng),
+    new google.maps.LatLng(c.lat, c.lng)
+   );
+
+   if(dist <= radioMetros){
+    incluidos.set(claveUnica(d), d);
+    break;
+   }
+  }
+ });
+
+ let r = Array.from(incluidos.values());
+
+ // 3) dibujar marcadores normales (colores)
+ modoBusqueda=false;
  dibujarMarcadores(r);
+
+ // 4) cambiar SOLO las coincidencias a estrella (⭐)
+ let clavesCoinc = new Set(coincidencias.map(d=>claveUnica(d)));
+
+ marcadores.forEach((m, idx)=>{
+  let d = r[idx];
+  if(clavesCoinc.has(claveUnica(d))){
+   m.setIcon({
+    path:google.maps.SymbolPath.STAR,
+    scale:7,
+    fillColor:"#000",
+    fillOpacity:1,
+    strokeWeight:1
+   });
+  }
+ });
+
+ // 5) mantener resto de funcionamiento igual
  mostrarMarcadores();
  construirHeatmap(r);
  actualizarContador(r);
  actualizarEstadisticas(r);
- map.setCenter({lat:r[0].lat,lng:r[0].lng});
- map.setZoom(r.length==1?15:12);
+
+ map.setCenter({lat:coincidencias[0].lat,lng:coincidencias[0].lng});
+ map.setZoom(r.length==1?15:13);
 }
 
 /* ===== RESET ===== */
@@ -305,67 +360,8 @@ function resetFiltros(){
 </script>
 
 <script async defer
-src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb1xIG3Iks&libraries=visualization&callback=initMap">
+src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBt7foEL44coYUN79fD5a-7EAb1xIG3Iks&libraries=visualization,geometry&callback=initMap">
 </script>
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

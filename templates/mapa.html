@@ -23,29 +23,54 @@ html, body { height:100%; margin:0; font-family:Arial; }
  right:10px;
  z-index:6;
  background:white;
- padding:10px;
- border-radius:8px;
+ padding:10px 12px;
+ border-radius:10px;
  box-shadow:2px 2px 6px #999;
  display:flex;
- gap:8px;
- align-items:center;
+ gap:10px;
+ align-items:flex-end;
  flex-wrap:wrap;
  font-size:13px;
 }
 
+/* ===== CADA BLOQUE DE FILTRO ===== */
+.filtroItem{
+ display:flex;
+ flex-direction:column;
+ gap:4px;
+ min-width:170px;
+ flex:1;
+}
+
+.filtroItem label{
+ font-size:11px;
+ font-weight:bold;
+ color:#444;
+}
+
 /* Selects horizontales */
 .panelFiltros select{
- height:28px;
- min-width:180px;
- flex:1;
+ height:30px;
+ border-radius:6px;
+ border:1px solid #ccc;
+ padding:2px 6px;
+ width:100%;
 }
 
 /* Botón limpiar filtros en horizontal */
 .panelFiltros button{
- height:30px;
- padding:0 12px;
- border-radius:6px;
+ height:32px;
+ padding:0 14px;
+ border-radius:8px;
  cursor:pointer;
+ border:1px solid #ccc;
+ background:#f6f6f6;
+ font-weight:bold;
+}
+
+/* Hover */
+.panelFiltros button:hover{
+ background:#ededed;
 }
 
 /* ===== INPUTS Y BOTONES DEL PANEL IZQUIERDO ===== */
@@ -144,12 +169,34 @@ html, body { height:100%; margin:0; font-family:Arial; }
 
 <!-- ===== FILTROS ARRIBA HORIZONTAL ===== -->
 <div class="panelFiltros">
- <select id="f_estado" multiple size="1"></select>
- <select id="f_actividad" multiple size="1"></select>
- <select id="f_provincia" multiple size="1"></select>
- <select id="f_distrito" multiple size="1"></select>
- <select id="f_anio" multiple size="1"></select>
+
+ <div class="filtroItem">
+  <label>Estado</label>
+  <select id="f_estado" multiple size="1"></select>
+ </div>
+
+ <div class="filtroItem">
+  <label>Actividad</label>
+  <select id="f_actividad" multiple size="1"></select>
+ </div>
+
+ <div class="filtroItem">
+  <label>Provincia</label>
+  <select id="f_provincia" multiple size="1"></select>
+ </div>
+
+ <div class="filtroItem">
+  <label>Distrito</label>
+  <select id="f_distrito" multiple size="1"></select>
+ </div>
+
+ <div class="filtroItem">
+  <label>Año (Última fiscalización)</label>
+  <select id="f_anio" multiple size="1"></select>
+ </div>
+
  <button onclick="resetFiltros()">Limpiar filtros</button>
+
 </div>
 
 <!-- ===== PANEL IZQUIERDO VERTICAL ===== -->
@@ -499,9 +546,7 @@ function actualizarEstadisticas(lista){
   .sort((a,b)=>b[1]-a[1]);
 
  let hd="<br><b>🏘️ Por Distrito</b><br>";
- distritosOrdenados.forEach(([dist,cant])=>{
-  hd+=`${dist}: ${cant}<br>`;
- });
+ hd+=distritosOrdenados.map(([dist,cant])=>`${dist}: ${cant}`).join("<br>");
  document.getElementById("stats_geo").innerHTML=hd;
 
  document.getElementById("stats_total").innerHTML=
@@ -558,7 +603,6 @@ function buscar(){
 
  let r = Array.from(setIncluidos.values());
 
- modoBusqueda=false;
  dibujarMarcadores(r);
 
  let clavesCoin = new Set(coincidencias.map(d=>clave(d)));

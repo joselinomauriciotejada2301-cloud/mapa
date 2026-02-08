@@ -8,12 +8,47 @@
 html, body { height:100%; margin:0; font-family:Arial; }
 #map { height:100%; }
 
+/* ===== PANEL IZQUIERDO ===== */
 .panel{
  position:absolute; top:10px; left:10px; z-index:5;
  background:white; padding:12px; border-radius:8px;
  box-shadow:2px 2px 6px #999; width:330px; font-size:13px;
 }
 
+/* ===== PANEL FILTROS HORIZONTAL ARRIBA ===== */
+.panelFiltros{
+ position:absolute;
+ top:10px;
+ left:360px;
+ right:10px;
+ z-index:6;
+ background:white;
+ padding:10px;
+ border-radius:8px;
+ box-shadow:2px 2px 6px #999;
+ display:flex;
+ gap:8px;
+ align-items:center;
+ flex-wrap:wrap;
+ font-size:13px;
+}
+
+/* Selects horizontales */
+.panelFiltros select{
+ height:28px;
+ min-width:180px;
+ flex:1;
+}
+
+/* Botón limpiar filtros en horizontal */
+.panelFiltros button{
+ height:30px;
+ padding:0 12px;
+ border-radius:6px;
+ cursor:pointer;
+}
+
+/* ===== INPUTS Y BOTONES DEL PANEL IZQUIERDO ===== */
 .panel select, .panel input, .panel button{
  width:100%; margin-bottom:6px;
 }
@@ -91,11 +126,33 @@ html, body { height:100%; margin:0; font-family:Arial; }
  border-radius:6px;
  cursor:pointer;
 }
+
+/* ===== RESPONSIVE ===== */
+@media(max-width:900px){
+ .panelFiltros{
+  left:10px;
+  top:320px;
+ }
+ .panel{
+  width:320px;
+ }
+}
 </style>
 </head>
 
 <body>
 
+<!-- ===== FILTROS ARRIBA HORIZONTAL ===== -->
+<div class="panelFiltros">
+ <select id="f_estado" multiple size="1"></select>
+ <select id="f_actividad" multiple size="1"></select>
+ <select id="f_provincia" multiple size="1"></select>
+ <select id="f_distrito" multiple size="1"></select>
+ <select id="f_anio" multiple size="1"></select>
+ <button onclick="resetFiltros()">Limpiar filtros</button>
+</div>
+
+<!-- ===== PANEL IZQUIERDO VERTICAL ===== -->
 <div class="panel">
 <b>🔎 Buscador</b>
 <input type="text" id="buscador" placeholder="Código o Razón Social">
@@ -107,17 +164,6 @@ html, body { height:100%; margin:0; font-family:Arial; }
  <input type="range" id="sliderDistancia" min="100" max="1000" step="50" value="500" oninput="actualizarTextoDistancia()">
  <div class="distancia-valor" id="txtDistancia">500 m</div>
 </div>
-
-<hr>
-
-<b>🎛️ Filtros (Ctrl / Shift múltiple)</b>
-<select id="f_estado" multiple size="1"></select>
-<select id="f_actividad" multiple size="1"></select>
-<select id="f_provincia" multiple size="1"></select>
-<select id="f_distrito" multiple size="1"></select>
-<select id="f_anio" multiple size="1"></select>
-
-<button onclick="resetFiltros()">Limpiar filtros</button>
 
 <hr>
 <button onclick="toggleHeatmap()">🔥 Activar / Desactivar Mapa de Calor</button>
@@ -221,12 +267,10 @@ function toggleMedicion(){
 }
 
 function activarMedicion(){
- // Click agrega puntos
  listenerClickMedicion = map.addListener("click", (e)=>{
   agregarPuntoMedicion(e.latLng);
  });
 
- // Doble click finaliza (sin zoom)
  listenerDblClickMedicion = map.addListener("dblclick", (e)=>{
   e.stop();
   finalizarMedicion();
@@ -243,7 +287,6 @@ function desactivarMedicion(){
 function agregarPuntoMedicion(latLng){
  puntosMedicion.push(latLng);
 
- // marcador pequeño
  let m=new google.maps.Marker({
   position: latLng,
   map: map,
@@ -258,7 +301,6 @@ function agregarPuntoMedicion(latLng){
  });
  marcadoresMedicion.push(m);
 
- // crear polyline si no existe
  if(!polylineMedicion){
   polylineMedicion=new google.maps.Polyline({
    map: map,
@@ -288,7 +330,6 @@ function actualizarDistanciaMedicion(){
   );
  }
 
- // Formato m / km
  if(total<1000){
   document.getElementById("txtMedicion").innerText = total.toFixed(0) + " m";
  }else{
@@ -296,10 +337,7 @@ function actualizarDistanciaMedicion(){
  }
 }
 
-function finalizarMedicion(){
- // Solo congela la medición (no borra)
- // El usuario puede seguir agregando puntos si quiere
-}
+function finalizarMedicion(){}
 
 function limpiarMedicion(){
  puntosMedicion=[];

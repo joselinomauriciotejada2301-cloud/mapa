@@ -205,6 +205,12 @@ html, body { height:100%; margin:0; font-family:Arial; }
 <input type="text" id="buscador" placeholder="Código o Razón Social">
 <button onclick="buscar()">Buscar</button>
 
+<!-- ===== NUEVO: BUSCAR POR COORDENADAS ===== -->
+<hr>
+<b>📍 Buscar por coordenadas</b>
+<input type="text" id="buscadorCoord" placeholder="Ej: -12.0464, -77.0428">
+<button onclick="buscarCoordenadas()">Buscar coordenadas</button>
+
 <!-- ===== REGULADOR DE DISTANCIA ===== -->
 <div class="distancia-box">
  <label>📏 Radio de búsqueda (metros)</label>
@@ -243,6 +249,9 @@ let map, datos=[], marcadores=[], heatmap;
 let heatmapActivo=false;
 let modoBusqueda=false;
 
+/* ===== NUEVO: MARCADOR PARA COORDENADAS ===== */
+let marcadorCoordenadas = null;
+
 /* ========= COLORES POR ACTIVIDAD ========= */
 const paletaColores=[
  "#e74c3c","#3498db","#2ecc71","#f1c40f","#9b59b6",
@@ -279,6 +288,18 @@ function iconoActividad(actividad){
   fillColor: colorPorActividad(actividad),
   fillOpacity: 1,
   strokeWeight: 1
+ };
+}
+
+/* ===== NUEVO: ICONO AZUL PARA COORDENADAS ===== */
+function iconoPuntoAzul(){
+ return {
+  path: google.maps.SymbolPath.CIRCLE,
+  scale: 8,
+  fillColor: "#1a73e8",
+  fillOpacity: 1,
+  strokeColor: "#ffffff",
+  strokeWeight: 2
  };
 }
 
@@ -501,6 +522,13 @@ function valores(id){
 /* ===== APLICAR FILTROS ===== */
 function aplicarFiltros(){
  modoBusqueda=false;
+
+ // IMPORTANTE: si filtras, se borra el punto de coordenadas
+ if(marcadorCoordenadas){
+  marcadorCoordenadas.setMap(null);
+  marcadorCoordenadas=null;
+ }
+
  let f=datos.filter(d=>
   (!valores("f_estado").length||valores("f_estado").includes(d.estado)) &&
   (!valores("f_actividad").length||valores("f_actividad").includes(d.actividad)) &&
@@ -564,6 +592,12 @@ function buscar(){
  let t=document.getElementById("buscador").value.toLowerCase().trim();
  if(!t){ resetFiltros(); return; }
 
+ // Si estaba el punto de coordenadas, lo borra
+ if(marcadorCoordenadas){
+  marcadorCoordenadas.setMap(null);
+  marcadorCoordenadas=null;
+ }
+
  let coincidencias=datos.filter(d=>
   String(d.codigo).toLowerCase().includes(t) ||
   String(d.razon).toLowerCase().includes(t)
@@ -623,9 +657,103 @@ function buscar(){
  map.setZoom(r.length==1?15:12);
 }
 
+/* ==========================================================
+   📍 NUEVO: BUSCAR POR COORDENADAS + MOSTRAR CERCANOS
+   ========================================================== */
+function buscarCoordenadas(){
+ let texto = document.getElementById("buscadorCoord").value.trim();
+
+ if(!texto){
+  alert("Ingresa coordenadas. Ejemplo: -12.0464, -77.0428");
+  return;
+ }
+
+ // Permite separador coma o espacio
+ texto = texto.replace(/\s+/g, "");
+ let partes = texto.split(",");
+
+ if(partes.length !== 2){
+  alert("Formato inválido. Usa: -12.0464, -77.0428");
+  return;
+ }
+
+ let lat = parseFloat(partes[0]);
+ let lng = parseFloat(partes[1]);
+
+ if(isNaN(lat) || isNaN(lng)){
+  alert("Coordenadas inválidas. Usa números. Ej: -12.0464, -77.0428");
+  return;
+ }
+
+ if(lat < -90 || lat > 90 || lng < -180 || lng > 180){
+  alert("Coordenadas fuera de rango.");
+  return;
+ }
+
+ // Quita modoBusqueda para que los agentes sigan con colores por actividad
+ modoBusqueda=false;
+
+ // Borra marcador anterior si existía
+ if(marcadorCoordenadas){
+  marcadorCoordenadas.setMap(null);
+  marcadorCoordenadas=null;
+ }
+
+ const punto = new google.maps.LatLng(lat, lng);
+
+ // Crea marcador azul
+ marcadorCoordenadas = new google.maps.Marker({
+  position: punto,
+  map: map,
+  icon: iconoPuntoAzul(),
+  title: "Punto buscado"
+ });
+
+ // Centra el mapa
+ map.setCenter({lat:lat, lng:lng});
+ map.setZoom(14);
+
+ const radioMetros = parseInt(document.getElementById("sliderDistancia").value);
+
+ // Filtra agentes cercanos
+ let cercanos = datos.filter(d=>{
+  if(d.lat == null || d.lng == null) return false;
+
+  let dist = google.maps.geometry.spherical.computeDistanceBetween(
+   punto,
+   new google.maps.LatLng(d.lat, d.lng)
+  );
+
+  return dist <= radioMetros;
+ });
+
+ // Si no hay cercanos, igual muestra el punto
+ if(!cercanos.length){
+  dibujarMarcadores([]);
+  ocultarMarcadores();
+  construirHeatmap([]);
+  actualizarContador([]);
+  document.getElementById("panelStats").style.display="none";
+  return;
+ }
+
+ dibujarMarcadores(cercanos);
+ mostrarMarcadores();
+ construirHeatmap(cercanos);
+ actualizarContador(cercanos);
+ actualizarEstadisticas(cercanos);
+}
+
 /* ===== RESET ===== */
 function resetFiltros(){
  modoBusqueda=false;
+
+ // Borra punto de coordenadas si existía
+ if(marcadorCoordenadas){
+  marcadorCoordenadas.setMap(null);
+  marcadorCoordenadas=null;
+ }
+
  document.querySelectorAll("select").forEach(s=>s.selectedIndex=-1);
  dibujarMarcadores(datos);
  construirHeatmap(datos);

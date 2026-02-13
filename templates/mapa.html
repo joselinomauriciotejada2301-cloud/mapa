@@ -252,6 +252,12 @@ let modoBusqueda=false;
 /* ===== NUEVO: MARCADOR PARA COORDENADAS ===== */
 let marcadorCoordenadas = null;
 
+/* ==========================================================
+   🗺️ NUEVO: CAPA DISTRITOS (RESALTADO)
+   ========================================================== */
+let distritosGeojson = null;
+let distritoResaltado = null;
+
 /* ========= COLORES POR ACTIVIDAD ========= */
 const paletaColores=[
  "#e74c3c","#3498db","#2ecc71","#f1c40f","#9b59b6",
@@ -416,11 +422,72 @@ function limpiarMedicion(){
  document.getElementById("txtMedicion").innerText="0 m";
 }
 
+/* ==========================================================
+   🗺️ NUEVO: CARGAR GEOJSON DE DISTRITOS
+   ========================================================== */
+function cargarGeojsonDistritos(){
+ fetch("/static/distritos.geojson.json")
+  .then(r=>r.json())
+  .then(g=>{
+   distritosGeojson = g;
+  })
+  .catch(err=>{
+   console.log("No se pudo cargar distritos.geojson.json", err);
+  });
+}
+
+/* ===== NUEVO: LIMPIAR RESALTADO ===== */
+function limpiarResaltadoDistrito(){
+ if(distritoResaltado){
+  distritoResaltado.setMap(null);
+  distritoResaltado=null;
+ }
+}
+
+/* ===== NUEVO: RESALTAR DISTRITO SELECCIONADO ===== */
+function resaltarDistrito(nombreDistrito){
+ if(!distritosGeojson || !distritosGeojson.features) return;
+
+ limpiarResaltadoDistrito();
+
+ let feature = distritosGeojson.features.find(f=>{
+  let nd = (f.properties?.nombdist || "").toString().trim().toUpperCase();
+  return nd === nombreDistrito.toString().trim().toUpperCase();
+ });
+
+ if(!feature) return;
+
+ distritoResaltado = new google.maps.Data();
+ distritoResaltado.addGeoJson(feature);
+
+ distritoResaltado.setStyle({
+  fillColor: "#ff0000",
+  fillOpacity: 0.15,
+  strokeColor: "#ff0000",
+  strokeOpacity: 0.9,
+  strokeWeight: 2
+ });
+
+ distritoResaltado.setMap(map);
+
+ // Ajusta vista al distrito
+ let bounds = new google.maps.LatLngBounds();
+ distritoResaltado.forEach(f=>{
+  f.getGeometry().forEachLatLng(latlng=>{
+   bounds.extend(latlng);
+  });
+ });
+ map.fitBounds(bounds);
+}
+
 /* ===== MAPA ===== */
 function initMap(){
  map=new google.maps.Map(document.getElementById("map"),{
   center:{lat:-12.05,lng:-77.05}, zoom:11
  });
+
+ // Carga geojson al iniciar (NO afecta nada si no existe)
+ cargarGeojsonDistritos();
 
  fetch("/datos").then(r=>r.json()).then(d=>{
   datos=d.map(x=>{
@@ -543,6 +610,14 @@ function aplicarFiltros(){
  actualizarEstadisticas(f);
 
  f.length?mostrarMarcadores():ocultarMarcadores();
+
+ // ===== NUEVO: RESALTAR DISTRITO SI SE ELIGIÓ SOLO 1 =====
+ let distSel = valores("f_distrito");
+ if(distSel.length === 1){
+  resaltarDistrito(distSel[0]);
+ }else{
+  limpiarResaltadoDistrito();
+ }
 }
 
 /* ===== ESTADISTICAS ===== */
@@ -597,6 +672,9 @@ function buscar(){
   marcadorCoordenadas.setMap(null);
   marcadorCoordenadas=null;
  }
+
+ // Al buscar, quita resaltado de distrito
+ limpiarResaltadoDistrito();
 
  let coincidencias=datos.filter(d=>
   String(d.codigo).toLowerCase().includes(t) ||
@@ -699,6 +777,9 @@ function buscarCoordenadas(){
   marcadorCoordenadas=null;
  }
 
+ // Al buscar coordenadas, quita resaltado de distrito
+ limpiarResaltadoDistrito();
+
  const punto = new google.maps.LatLng(lat, lng);
 
  // Crea marcador azul
@@ -753,6 +834,9 @@ function resetFiltros(){
   marcadorCoordenadas.setMap(null);
   marcadorCoordenadas=null;
  }
+
+ // Quita resaltado
+ limpiarResaltadoDistrito();
 
  document.querySelectorAll("select").forEach(s=>s.selectedIndex=-1);
  dibujarMarcadores(datos);

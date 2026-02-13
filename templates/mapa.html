@@ -252,6 +252,15 @@ let modoBusqueda=false;
 /* ===== NUEVO: MARCADOR PARA COORDENADAS ===== */
 let marcadorCoordenadas = null;
 
+/* ==========================================================
+   🗺️ DISTRITOS (RESALTADO MULTIPLE)
+   ========================================================== */
+let distritosGeojson = null;
+
+/* Antes solo tenías 1 distritoResaltado.
+   Ahora guardaremos un array de capas para poder mostrar varios. */
+let distritosResaltados = [];
+
 /* ========= COLORES POR ACTIVIDAD ========= */
 const paletaColores=[
  "#e74c3c","#3498db","#2ecc71","#f1c40f","#9b59b6",
@@ -291,7 +300,7 @@ function iconoActividad(actividad){
  };
 }
 
-/* ===== NUEVO: ICONO AZUL PARA COORDENADAS ===== */
+/* ===== ICONO AZUL PARA COORDENADAS ===== */
 function iconoPuntoAzul(){
  return {
   path: google.maps.SymbolPath.CIRCLE,
@@ -417,85 +426,118 @@ function limpiarMedicion(){
 }
 
 /* ==========================================================
-   🏘️ LIMITES DISTRITALES (MULTI-DISTRITO)
+   🗺️ CARGAR GEOJSON DE DISTRITOS
    ========================================================== */
-const GEOJSON_DISTRITOS_URL = "distritos_lima.geojson";
-
-let geojsonDistritos = null;        // datos cargados
-let limitesActivos = [];            // features activas mostradas
-
-async function cargarGeojsonDistritos(){
- try{
-  const r = await fetch(GEOJSON_DISTRITOS_URL);
-  geojsonDistritos = await r.json();
-  console.log("✅ GeoJSON distritos cargado:", geojsonDistritos.features?.length || 0);
- }catch(err){
-  console.warn("⚠️ No se pudo cargar el GeoJSON de distritos:", err);
- }
-}
-
-function limpiarLimitesDistritos(){
- // Borra todo lo dibujado en el mapa
- map.data.forEach(f=>map.data.remove(f));
- limitesActivos=[];
-}
-
-function dibujarLimitesDistritosSeleccionados(){
- // Solo dibuja si existe geojson y hay selección
- if(!geojsonDistritos || !geojsonDistritos.features) return;
-
- // distritos seleccionados (pueden ser varios)
- const distritosSeleccionados = valores("f_distrito");
-
- // Si no hay distritos seleccionados, no dibuja nada
- if(!distritosSeleccionados.length){
-  limpiarLimitesDistritos();
-  return;
- }
-
- // Limpia lo anterior
- limpiarLimitesDistritos();
-
- // Normaliza para comparar (sin mayúsculas)
- const setDist = new Set(distritosSeleccionados.map(x=>String(x).trim().toUpperCase()));
-
- // Filtra features
- const featuresFiltradas = geojsonDistritos.features.filter(f=>{
-  // Aquí depende del nombre del campo en tu GeoJSON:
-  // Según lo que me mostraste, es "nombdist"
-  const nombdist = (f.properties?.nombdist || "").trim().toUpperCase();
-  return setDist.has(nombdist);
- });
-
- // Agrega cada feature al map.data
- featuresFiltradas.forEach(f=>{
-  map.data.addGeoJson({
-   type:"FeatureCollection",
-   features:[f]
+function cargarGeojsonDistritos(){
+ fetch("/static/distritos.geojson.json")
+  .then(r=>r.json())
+  .then(g=>{
+   distritosGeojson = g;
+  })
+  .catch(err=>{
+   console.log("No se pudo cargar distritos.geojson.json", err);
   });
+}
+
+/* ==========================================================
+   🗺️ LIMPIAR DISTRITOS RESALTADOS (AHORA MULTIPLE)
+   ========================================================== */
+function limpiarResaltadoDistrito(){
+ if(distritosResaltados.length){
+  distritosResaltados.forEach(capa=>{
+   capa.setMap(null);
+  });
+ }
+ distritosResaltados=[];
+}
+
+/* ==========================================================
+   🎨 COLORES DISTINTOS PARA MULTI-DISTRITO
+   ========================================================== */
+const paletaDistritos = [
+ "#e74c3c","#3498db","#2ecc71","#f1c40f","#9b59b6",
+ "#1abc9c","#e67e22","#34495e","#d35400","#16a085",
+ "#c0392b","#2980b9","#27ae60","#f39c12","#8e44ad"
+];
+
+/* ==========================================================
+   🏘️ RESALTAR 1 O VARIOS DISTRITOS
+   ========================================================== */
+function resaltarDistritos(listaDistritos){
+ if(!distritosGeojson || !distritosGeojson.features) return;
+
+ limpiarResaltadoDistrito();
+
+ if(!listaDistritos || !listaDistritos.length) return;
+
+ // Normalizamos
+ let seleccion = listaDistritos.map(x=>String(x).trim().toUpperCase());
+
+ // Filtramos features que coincidan
+ let features = distritosGeojson.features.filter(f=>{
+  let nd = (f.properties?.nombdist || "").toString().trim().toUpperCase();
+  return seleccion.includes(nd);
  });
 
- // Estilo del borde
- map.data.setStyle({
-  fillColor: "#1a73e8",
-  fillOpacity: 0.06,
-  strokeColor: "#1a73e8",
-  strokeOpacity: 1,
-  strokeWeight: 2
- });
+ if(!features.length) return;
 
- // Ajusta zoom para ver todos los distritos seleccionados
- if(featuresFiltradas.length){
-  const bounds = new google.maps.LatLngBounds();
+ // Para hacer fitBounds
+ let bounds = new google.maps.LatLngBounds();
 
-  map.data.forEach(feature=>{
-   feature.getGeometry().forEachLatLng(latlng=>{
+ // Si es 1 distrito => rojo fijo (igual que antes)
+ if(features.length === 1){
+  let feature = features[0];
+
+  let capa = new google.maps.Data();
+  capa.addGeoJson(feature);
+
+  capa.setStyle({
+   fillColor: "#ff0000",
+   fillOpacity: 0.15,
+   strokeColor: "#ff0000",
+   strokeOpacity: 0.9,
+   strokeWeight: 2
+  });
+
+  capa.setMap(map);
+  distritosResaltados.push(capa);
+
+  capa.forEach(ft=>{
+   ft.getGeometry().forEachLatLng(latlng=>{
     bounds.extend(latlng);
    });
   });
 
   map.fitBounds(bounds);
+  return;
  }
+
+ // Si son VARIOS => borde distinto por distrito
+ features.forEach((feature, idx)=>{
+  let color = paletaDistritos[idx % paletaDistritos.length];
+
+  let capa = new google.maps.Data();
+  capa.addGeoJson(feature);
+
+  capa.setStyle({
+   fillColor: color,
+   fillOpacity: 0.08,
+   strokeColor: color,
+   strokeOpacity: 0.95,
+   strokeWeight: 2
+  });
+
+  capa.setMap(map);
+  distritosResaltados.push(capa);
+
+  capa.forEach(ft=>{
+   ft.getGeometry().forEachLatLng(latlng=>{
+    bounds.extend(latlng);
+   });
+  });
+ });
+
+ map.fitBounds(bounds);
 }
 
 /* ===== MAPA ===== */
@@ -504,7 +546,7 @@ function initMap(){
   center:{lat:-12.05,lng:-77.05}, zoom:11
  });
 
- // Carga GeoJSON distritos
+ // Carga geojson al iniciar (NO afecta nada si no existe)
  cargarGeojsonDistritos();
 
  fetch("/datos").then(r=>r.json()).then(d=>{
@@ -614,9 +656,6 @@ function aplicarFiltros(){
   marcadorCoordenadas=null;
  }
 
- // Dibuja límites de distritos seleccionados (UNO O VARIOS)
- dibujarLimitesDistritosSeleccionados();
-
  let f=datos.filter(d=>
   (!valores("f_estado").length||valores("f_estado").includes(d.estado)) &&
   (!valores("f_actividad").length||valores("f_actividad").includes(d.actividad)) &&
@@ -631,6 +670,14 @@ function aplicarFiltros(){
  actualizarEstadisticas(f);
 
  f.length?mostrarMarcadores():ocultarMarcadores();
+
+ // ===== NUEVO: RESALTAR 1 O VARIOS DISTRITOS =====
+ let distSel = valores("f_distrito");
+ if(distSel.length >= 1){
+  resaltarDistritos(distSel);
+ }else{
+  limpiarResaltadoDistrito();
+ }
 }
 
 /* ===== ESTADISTICAS ===== */
@@ -685,6 +732,9 @@ function buscar(){
   marcadorCoordenadas.setMap(null);
   marcadorCoordenadas=null;
  }
+
+ // Al buscar, quita resaltado de distrito
+ limpiarResaltadoDistrito();
 
  let coincidencias=datos.filter(d=>
   String(d.codigo).toLowerCase().includes(t) ||
@@ -787,8 +837,8 @@ function buscarCoordenadas(){
   marcadorCoordenadas=null;
  }
 
- // Limpia límites si estabas filtrando distritos
- limpiarLimitesDistritos();
+ // Al buscar coordenadas, quita resaltado de distrito
+ limpiarResaltadoDistrito();
 
  const punto = new google.maps.LatLng(lat, lng);
 
@@ -845,8 +895,8 @@ function resetFiltros(){
   marcadorCoordenadas=null;
  }
 
- // Limpia límites de distritos
- limpiarLimitesDistritos();
+ // Quita resaltado
+ limpiarResaltadoDistrito();
 
  document.querySelectorAll("select").forEach(s=>s.selectedIndex=-1);
  dibujarMarcadores(datos);

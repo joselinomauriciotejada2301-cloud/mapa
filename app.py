@@ -1,10 +1,65 @@
 from flask import Flask, jsonify, render_template
 import pandas as pd
 import os
+import re
 
 app = Flask(__name__)
 
 EXCEL_PATH = "Datosmapa.xlsx"
+
+
+# ==========================================================
+# FUNCIONES AUXILIARES
+# ==========================================================
+def extraer_numero(valor):
+    """
+    Convierte:
+    '480 kg' -> 480
+    '2000 LITROS' -> 2000
+    'GALONES' -> 0
+    '' -> 0
+    None -> 0
+    """
+    if pd.isna(valor):
+        return 0
+
+    texto = str(valor).strip()
+
+    if texto == "":
+        return 0
+
+    # Busca el primer número (entero o decimal)
+    match = re.search(r"[-+]?\d*\.?\d+", texto.replace(",", ""))
+    if match:
+        try:
+            return float(match.group())
+        except:
+            return 0
+
+    return 0
+
+
+def texto_bonito(valor):
+    """
+    Devuelve texto listo para mostrar en popup:
+    - Si está vacío -> '0'
+    - Si es numérico -> '480'
+    - Si es texto con unidad -> '480 kg'
+    - Si es 'GALONES' -> '0'
+    """
+    if pd.isna(valor):
+        return "0"
+
+    t = str(valor).strip()
+    if t == "":
+        return "0"
+
+    # Si no tiene ningún número, devolvemos 0
+    if not re.search(r"\d", t):
+        return "0"
+
+    return t
+
 
 def cargar_datos():
     df = pd.read_excel(EXCEL_PATH)
@@ -63,12 +118,27 @@ def cargar_datos():
     df["lng"] = pd.to_numeric(df.get("lng"), errors="coerce")
 
     # ==========================================================
-    # CONVERTIR CAPACIDADES NUEVAS
+    # ASEGURAR COLUMNAS NUEVAS
     # ==========================================================
     for col in ["cap_total_glp", "cap_total_cl", "glp_cilindros", "cap_total_gnv"]:
         if col not in df.columns:
-            df[col] = 0
-        df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0)
+            df[col] = ""
+
+    # ==========================================================
+    # GUARDAR VERSION TEXTO (BONITA) PARA POPUP
+    # ==========================================================
+    df["cap_total_glp_txt"] = df["cap_total_glp"].apply(texto_bonito)
+    df["cap_total_cl_txt"] = df["cap_total_cl"].apply(texto_bonito)
+    df["glp_cilindros_txt"] = df["glp_cilindros"].apply(texto_bonito)
+    df["cap_total_gnv_txt"] = df["cap_total_gnv"].apply(texto_bonito)
+
+    # ==========================================================
+    # CONVERTIR CAPACIDADES A NUMERO (PARA HEATMAP)
+    # ==========================================================
+    df["cap_total_glp"] = df["cap_total_glp"].apply(extraer_numero)
+    df["cap_total_cl"] = df["cap_total_cl"].apply(extraer_numero)
+    df["glp_cilindros"] = df["glp_cilindros"].apply(extraer_numero)
+    df["cap_total_gnv"] = df["cap_total_gnv"].apply(extraer_numero)
 
     # ==========================================================
     # CAPACIDAD TOTAL (PARA HEATMAP)
@@ -90,7 +160,6 @@ def cargar_datos():
     if "capacidad" in df.columns:
         df["capacidad"] = pd.to_numeric(df["capacidad"], errors="coerce").fillna(1)
     else:
-        # Si ya no existe, la creamos por compatibilidad
         df["capacidad"] = df["capacidad_total"]
 
     # ==========================================================
@@ -100,13 +169,16 @@ def cargar_datos():
 
     return df.fillna("").to_dict(orient="records")
 
+
 @app.route("/")
 def index():
     return render_template("mapa.html")
 
+
 @app.route("/datos")
 def datos():
     return jsonify(cargar_datos())
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))

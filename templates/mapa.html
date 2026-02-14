@@ -256,9 +256,6 @@ let marcadorCoordenadas = null;
    🗺️ DISTRITOS (RESALTADO MULTIPLE)
    ========================================================== */
 let distritosGeojson = null;
-
-/* Antes solo tenías 1 distritoResaltado.
-   Ahora guardaremos un array de capas para poder mostrar varios. */
 let distritosResaltados = [];
 
 /* ========= COLORES POR ACTIVIDAD ========= */
@@ -470,10 +467,8 @@ function resaltarDistritos(listaDistritos){
 
  if(!listaDistritos || !listaDistritos.length) return;
 
- // Normalizamos
  let seleccion = listaDistritos.map(x=>String(x).trim().toUpperCase());
 
- // Filtramos features que coincidan
  let features = distritosGeojson.features.filter(f=>{
   let nd = (f.properties?.nombdist || "").toString().trim().toUpperCase();
   return seleccion.includes(nd);
@@ -481,10 +476,8 @@ function resaltarDistritos(listaDistritos){
 
  if(!features.length) return;
 
- // Para hacer fitBounds
  let bounds = new google.maps.LatLngBounds();
 
- // Si es 1 distrito => rojo fijo (igual que antes)
  if(features.length === 1){
   let feature = features[0];
 
@@ -512,7 +505,6 @@ function resaltarDistritos(listaDistritos){
   return;
  }
 
- // Si son VARIOS => borde distinto por distrito
  features.forEach((feature, idx)=>{
   let color = paletaDistritos[idx % paletaDistritos.length];
 
@@ -546,7 +538,6 @@ function initMap(){
   center:{lat:-12.05,lng:-77.05}, zoom:11
  });
 
- // Carga geojson al iniciar (NO afecta nada si no existe)
  cargarGeojsonDistritos();
 
  fetch("/datos").then(r=>r.json()).then(d=>{
@@ -571,8 +562,6 @@ function initMap(){
 function construirHeatmap(lista){
  let puntos=lista.map(d=>({
   location:new google.maps.LatLng(d.lat,d.lng),
-
-  // ✅ CAMBIO: ahora usa capacidad_total (del Excel nuevo)
   weight:Math.sqrt(d.capacidad_total||1)
  }));
  if(heatmap) heatmap.setMap(null);
@@ -609,13 +598,15 @@ function dibujarMarcadores(lista){
    Distrito: ${d.distrito}<br>
    Estado: ${d.estado}<br>
    Última fiscalización: ${d.fiscalizacion}<br>
+
    <hr style="margin:6px 0;">
    <b>Capacidades</b><br>
-   Capacidad total GLP: ${d.cap_total_glp}<br>
-   Capacidad total CL: ${d.cap_total_cl}<br>
-   GLP en cilindros: ${d.glp_cilindros}<br>
-   Capacidad total GNV: ${d.cap_total_gnv}<br>
+   Capacidad total GLP: ${d.cap_total_glp_txt}<br>
+   Capacidad total CL: ${d.cap_total_cl_txt}<br>
+   GLP en cilindros: ${d.glp_cilindros_txt}<br>
+   Capacidad total GNV: ${d.cap_total_gnv_txt}<br>
    <b>Capacidad total:</b> ${d.capacidad_total}<br>
+
    <hr style="margin:6px 0;">
    Latitud: ${d.lat}<br>
    Longitud: ${d.lng}`
@@ -661,7 +652,6 @@ function valores(id){
 function aplicarFiltros(){
  modoBusqueda=false;
 
- // IMPORTANTE: si filtras, se borra el punto de coordenadas
  if(marcadorCoordenadas){
   marcadorCoordenadas.setMap(null);
   marcadorCoordenadas=null;
@@ -682,7 +672,6 @@ function aplicarFiltros(){
 
  f.length?mostrarMarcadores():ocultarMarcadores();
 
- // ===== NUEVO: RESALTAR 1 O VARIOS DISTRITOS =====
  let distSel = valores("f_distrito");
  if(distSel.length >= 1){
   resaltarDistritos(distSel);
@@ -738,13 +727,11 @@ function buscar(){
  let t=document.getElementById("buscador").value.toLowerCase().trim();
  if(!t){ resetFiltros(); return; }
 
- // Si estaba el punto de coordenadas, lo borra
  if(marcadorCoordenadas){
   marcadorCoordenadas.setMap(null);
   marcadorCoordenadas=null;
  }
 
- // Al buscar, quita resaltado de distrito
  limpiarResaltadoDistrito();
 
  let coincidencias=datos.filter(d=>
@@ -817,7 +804,6 @@ function buscarCoordenadas(){
   return;
  }
 
- // Permite separador coma o espacio
  texto = texto.replace(/\s+/g, "");
  let partes = texto.split(",");
 
@@ -839,21 +825,17 @@ function buscarCoordenadas(){
   return;
  }
 
- // Quita modoBusqueda para que los agentes sigan con colores por actividad
  modoBusqueda=false;
 
- // Borra marcador anterior si existía
  if(marcadorCoordenadas){
   marcadorCoordenadas.setMap(null);
   marcadorCoordenadas=null;
  }
 
- // Al buscar coordenadas, quita resaltado de distrito
  limpiarResaltadoDistrito();
 
  const punto = new google.maps.LatLng(lat, lng);
 
- // Crea marcador azul
  marcadorCoordenadas = new google.maps.Marker({
   position: punto,
   map: map,
@@ -861,13 +843,11 @@ function buscarCoordenadas(){
   title: "Punto buscado"
  });
 
- // Centra el mapa
  map.setCenter({lat:lat, lng:lng});
  map.setZoom(14);
 
  const radioMetros = parseInt(document.getElementById("sliderDistancia").value);
 
- // Filtra agentes cercanos
  let cercanos = datos.filter(d=>{
   if(d.lat == null || d.lng == null) return false;
 
@@ -879,7 +859,6 @@ function buscarCoordenadas(){
   return dist <= radioMetros;
  });
 
- // Si no hay cercanos, igual muestra el punto
  if(!cercanos.length){
   dibujarMarcadores([]);
   ocultarMarcadores();
@@ -900,13 +879,11 @@ function buscarCoordenadas(){
 function resetFiltros(){
  modoBusqueda=false;
 
- // Borra punto de coordenadas si existía
  if(marcadorCoordenadas){
   marcadorCoordenadas.setMap(null);
   marcadorCoordenadas=null;
  }
 
- // Quita resaltado
  limpiarResaltadoDistrito();
 
  document.querySelectorAll("select").forEach(s=>s.selectedIndex=-1);

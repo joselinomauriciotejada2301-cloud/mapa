@@ -571,7 +571,9 @@ function initMap(){
 function construirHeatmap(lista){
  let puntos=lista.map(d=>({
   location:new google.maps.LatLng(d.lat,d.lng),
-  weight:Math.sqrt(d.capacidad||1)
+
+  // ✅ CAMBIO: ahora usa capacidad_total (del Excel nuevo)
+  weight:Math.sqrt(d.capacidad_total||1)
  }));
  if(heatmap) heatmap.setMap(null);
  heatmap=new google.maps.visualization.HeatmapLayer({
@@ -606,8 +608,17 @@ function dibujarMarcadores(lista){
    Registro: ${d.registro}<br>
    Distrito: ${d.distrito}<br>
    Estado: ${d.estado}<br>
-   Capacidad: ${d.capacidad}<br>
-   Última fiscalización: ${d.fiscalizacion}`
+   Última fiscalización: ${d.fiscalizacion}<br>
+   <hr style="margin:6px 0;">
+   <b>Capacidades</b><br>
+   Capacidad total GLP: ${d.cap_total_glp}<br>
+   Capacidad total CL: ${d.cap_total_cl}<br>
+   GLP en cilindros: ${d.glp_cilindros}<br>
+   Capacidad total GNV: ${d.cap_total_gnv}<br>
+   <b>Capacidad total:</b> ${d.capacidad_total}<br>
+   <hr style="margin:6px 0;">
+   Latitud: ${d.lat}<br>
+   Longitud: ${d.lng}`
   });
 
   marker.addListener("click",()=>info.open(map,marker));

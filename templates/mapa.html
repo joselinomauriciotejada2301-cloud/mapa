@@ -722,10 +722,36 @@ function actualizarContador(lista){
  "Total registros: <b>"+lista.length+"</b>";
 }
 
-/* ===== BUSCADOR (COINCIDENCIAS + RADIO AJUSTABLE) ===== */
+/* ==========================================================
+   ✅ NUEVO: PARSEAR LISTA DE CÓDIGOS (POR SALTO DE LÍNEA O COMAS)
+   ========================================================== */
+function obtenerListaCodigosDesdeTexto(texto){
+ if(!texto) return [];
+
+ // Convierte saltos de línea y comas en separadores
+ // Ej: "9464\n1234,5678" => ["9464","1234","5678"]
+ let lista = texto
+  .split(/[\n,;]+/g)
+  .map(x=>String(x).trim())
+  .filter(x=>x.length>0);
+
+ // Quitar duplicados manteniendo orden
+ let vistos = new Set();
+ let salida = [];
+ lista.forEach(c=>{
+  if(!vistos.has(c)){
+   vistos.add(c);
+   salida.push(c);
+  }
+ });
+
+ return salida;
+}
+
+/* ===== BUSCADOR (AHORA SOPORTA MULTI-CODIGO) ===== */
 function buscar(){
- let t=document.getElementById("buscador").value.toLowerCase().trim();
- if(!t){ resetFiltros(); return; }
+ let texto = document.getElementById("buscador").value.trim();
+ if(!texto){ resetFiltros(); return; }
 
  if(marcadorCoordenadas){
   marcadorCoordenadas.setMap(null);
@@ -734,22 +760,52 @@ function buscar(){
 
  limpiarResaltadoDistrito();
 
- let coincidencias=datos.filter(d=>
-  String(d.codigo).toLowerCase().includes(t) ||
-  String(d.razon).toLowerCase().includes(t)
- );
-
- if(!coincidencias.length){
-  alert("No se encontraron coincidencias");
-  return;
- }
-
  const radioMetros = parseInt(document.getElementById("sliderDistancia").value);
 
  function clave(d){
   return String(d.codigo || "") + "|" + String(d.registro || "") + "|" + String(d.lat) + "|" + String(d.lng);
  }
 
+ // ==========================================================
+ // 🔥 DETECTAR SI ES LISTA DE CÓDIGOS (MULTILÍNEA O CON COMAS)
+ // ==========================================================
+ let listaCodigos = obtenerListaCodigosDesdeTexto(texto);
+
+ // Si la lista tiene 2 o más elementos, lo tratamos como "multi-código"
+ // Si solo hay 1, mantenemos la lógica original (código o razón social)
+ let esMultiCodigo = (listaCodigos.length >= 2);
+
+ let coincidencias = [];
+
+ if(esMultiCodigo){
+  // ===== MULTI-CODIGO =====
+  // Solo busca por código exacto (más confiable)
+  // (Se puede cambiar a includes si lo quieres)
+  let setCodigos = new Set(listaCodigos.map(x=>String(x).toLowerCase()));
+
+  coincidencias = datos.filter(d=>{
+   let cod = String(d.codigo || "").trim().toLowerCase();
+   return setCodigos.has(cod);
+  });
+
+ }else{
+  // ===== BUSQUEDA NORMAL (IGUAL QUE ANTES) =====
+  let t = texto.toLowerCase();
+
+  coincidencias = datos.filter(d=>
+   String(d.codigo).toLowerCase().includes(t) ||
+   String(d.razon).toLowerCase().includes(t)
+  );
+ }
+
+ if(!coincidencias.length){
+  alert("No se encontraron coincidencias");
+  return;
+ }
+
+ // ==========================================================
+ // MANTENER FUNCIONALIDAD: incluir cercanos por radio
+ // ==========================================================
  let setIncluidos = new Map();
  coincidencias.forEach(d=>setIncluidos.set(clave(d), d));
 
@@ -773,8 +829,15 @@ function buscar(){
 
  let r = Array.from(setIncluidos.values());
 
+ // ==========================================================
+ // DIBUJAR
+ // ==========================================================
  dibujarMarcadores(r);
 
+ // ==========================================================
+ // SOLO EN MODO NORMAL: resaltar coincidencias en rojo
+ // (En multi-código, también lo hacemos, pero solo los que están en la lista)
+ // ==========================================================
  let clavesCoin = new Set(coincidencias.map(d=>clave(d)));
 
  marcadores.forEach((marker, i)=>{
@@ -789,8 +852,20 @@ function buscar(){
  actualizarContador(r);
  actualizarEstadisticas(r);
 
- map.setCenter({lat:coincidencias[0].lat,lng:coincidencias[0].lng});
- map.setZoom(r.length==1?15:12);
+ // ==========================================================
+ // CENTRADO
+ // ==========================================================
+ // Si es multi-código, hacemos fitBounds para que entren todos
+ if(esMultiCodigo && r.length > 1){
+  let bounds = new google.maps.LatLngBounds();
+  r.forEach(d=>{
+   bounds.extend(new google.maps.LatLng(d.lat, d.lng));
+  });
+  map.fitBounds(bounds);
+ }else{
+  map.setCenter({lat:coincidencias[0].lat,lng:coincidencias[0].lng});
+  map.setZoom(r.length==1?15:12);
+ }
 }
 
 /* ==========================================================

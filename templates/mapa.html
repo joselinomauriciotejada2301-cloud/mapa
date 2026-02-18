@@ -152,6 +152,21 @@ html, body { height:100%; margin:0; font-family:Arial; }
  cursor:pointer;
 }
 
+/* ===== BOTON RESALTADO DISTRITOS ===== */
+.btn-toggle-distritos{
+ background:#f6f6f6;
+ border:1px solid #ccc;
+ padding:8px;
+ border-radius:8px;
+ cursor:pointer;
+ font-weight:bold;
+}
+.btn-toggle-distritos.on{
+ background:#1a73e8;
+ color:white;
+ border:none;
+}
+
 /* ===== RESPONSIVE ===== */
 @media(max-width:900px){
  .panelFiltros{
@@ -205,6 +220,13 @@ html, body { height:100%; margin:0; font-family:Arial; }
 <input type="text" id="buscador" placeholder="Código o Razón Social">
 <button onclick="buscar()">Buscar</button>
 
+<hr>
+
+<!-- ===== NUEVO: BOTON ON/OFF RESALTADO DISTRITAL ===== -->
+<button id="btnToggleDistritos" class="btn-toggle-distritos on" onclick="toggleResaltadoDistritos()">
+🏘️ Resaltado distrital: ON
+</button>
+
 <!-- ===== NUEVO: BUSCAR POR COORDENADAS ===== -->
 <hr>
 <b>📍 Buscar por coordenadas</b>
@@ -257,6 +279,26 @@ let marcadorCoordenadas = null;
    ========================================================== */
 let distritosGeojson = null;
 let distritosResaltados = [];
+
+/* ==========================================================
+   ✅ NUEVO: CONTROL ON/OFF RESALTADO DISTRITAL
+   ========================================================== */
+let resaltadoDistritalActivo = true;
+
+function toggleResaltadoDistritos(){
+ resaltadoDistritalActivo = !resaltadoDistritalActivo;
+
+ let btn = document.getElementById("btnToggleDistritos");
+
+ if(resaltadoDistritalActivo){
+  btn.innerText = "🏘️ Resaltado distrital: ON";
+  btn.classList.add("on");
+ }else{
+  btn.innerText = "🏘️ Resaltado distrital: OFF";
+  btn.classList.remove("on");
+  limpiarResaltadoDistrito();
+ }
+}
 
 /* ========= COLORES POR ACTIVIDAD ========= */
 const paletaColores=[
@@ -461,6 +503,7 @@ const paletaDistritos = [
    🏘️ RESALTAR 1 O VARIOS DISTRITOS
    ========================================================== */
 function resaltarDistritos(listaDistritos){
+ if(!resaltadoDistritalActivo) return;
  if(!distritosGeojson || !distritosGeojson.features) return;
 
  limpiarResaltadoDistrito();
@@ -530,6 +573,30 @@ function resaltarDistritos(listaDistritos){
  });
 
  map.fitBounds(bounds);
+}
+
+/* ==========================================================
+   ✅ NUEVO: RESALTAR DISTRITOS SEGÚN RESULTADOS (BÚSQUEDA)
+   ========================================================== */
+function resaltarDistritosDeResultados(listaResultados){
+ if(!resaltadoDistritalActivo) return;
+
+ if(!listaResultados || !listaResultados.length){
+  limpiarResaltadoDistrito();
+  return;
+ }
+
+ let distritos = [...new Set(
+  listaResultados
+   .map(x=>String(x.distrito || "").trim())
+   .filter(x=>x.length>0)
+ )];
+
+ if(distritos.length){
+  resaltarDistritos(distritos);
+ }else{
+  limpiarResaltadoDistrito();
+ }
 }
 
 /* ===== MAPA ===== */
@@ -728,14 +795,11 @@ function actualizarContador(lista){
 function obtenerListaCodigosDesdeTexto(texto){
  if(!texto) return [];
 
- // Convierte saltos de línea y comas en separadores
- // Ej: "9464\n1234,5678" => ["9464","1234","5678"]
  let lista = texto
   .split(/[\n,;]+/g)
   .map(x=>String(x).trim())
   .filter(x=>x.length>0);
 
- // Quitar duplicados manteniendo orden
  let vistos = new Set();
  let salida = [];
  lista.forEach(c=>{
@@ -758,29 +822,18 @@ function buscar(){
   marcadorCoordenadas=null;
  }
 
- limpiarResaltadoDistrito();
-
  const radioMetros = parseInt(document.getElementById("sliderDistancia").value);
 
  function clave(d){
   return String(d.codigo || "") + "|" + String(d.registro || "") + "|" + String(d.lat) + "|" + String(d.lng);
  }
 
- // ==========================================================
- // 🔥 DETECTAR SI ES LISTA DE CÓDIGOS (MULTILÍNEA O CON COMAS)
- // ==========================================================
  let listaCodigos = obtenerListaCodigosDesdeTexto(texto);
-
- // Si la lista tiene 2 o más elementos, lo tratamos como "multi-código"
- // Si solo hay 1, mantenemos la lógica original (código o razón social)
  let esMultiCodigo = (listaCodigos.length >= 2);
 
  let coincidencias = [];
 
  if(esMultiCodigo){
-  // ===== MULTI-CODIGO =====
-  // Solo busca por código exacto (más confiable)
-  // (Se puede cambiar a includes si lo quieres)
   let setCodigos = new Set(listaCodigos.map(x=>String(x).toLowerCase()));
 
   coincidencias = datos.filter(d=>{
@@ -789,7 +842,6 @@ function buscar(){
   });
 
  }else{
-  // ===== BUSQUEDA NORMAL (IGUAL QUE ANTES) =====
   let t = texto.toLowerCase();
 
   coincidencias = datos.filter(d=>
@@ -803,9 +855,6 @@ function buscar(){
   return;
  }
 
- // ==========================================================
- // MANTENER FUNCIONALIDAD: incluir cercanos por radio
- // ==========================================================
  let setIncluidos = new Map();
  coincidencias.forEach(d=>setIncluidos.set(clave(d), d));
 
@@ -829,15 +878,8 @@ function buscar(){
 
  let r = Array.from(setIncluidos.values());
 
- // ==========================================================
- // DIBUJAR
- // ==========================================================
  dibujarMarcadores(r);
 
- // ==========================================================
- // SOLO EN MODO NORMAL: resaltar coincidencias en rojo
- // (En multi-código, también lo hacemos, pero solo los que están en la lista)
- // ==========================================================
  let clavesCoin = new Set(coincidencias.map(d=>clave(d)));
 
  marcadores.forEach((marker, i)=>{
@@ -852,10 +894,9 @@ function buscar(){
  actualizarContador(r);
  actualizarEstadisticas(r);
 
- // ==========================================================
- // CENTRADO
- // ==========================================================
- // Si es multi-código, hacemos fitBounds para que entren todos
+ // ✅ NUEVO: resaltar distritos donde están los resultados
+ resaltarDistritosDeResultados(coincidencias);
+
  if(esMultiCodigo && r.length > 1){
   let bounds = new google.maps.LatLngBounds();
   r.forEach(d=>{
@@ -940,6 +981,7 @@ function buscarCoordenadas(){
   construirHeatmap([]);
   actualizarContador([]);
   document.getElementById("panelStats").style.display="none";
+  limpiarResaltadoDistrito();
   return;
  }
 
@@ -948,6 +990,9 @@ function buscarCoordenadas(){
  construirHeatmap(cercanos);
  actualizarContador(cercanos);
  actualizarEstadisticas(cercanos);
+
+ // ✅ NUEVO: resaltar distritos donde están los resultados
+ resaltarDistritosDeResultados(cercanos);
 }
 
 /* ===== RESET ===== */

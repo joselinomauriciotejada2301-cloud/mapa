@@ -109,6 +109,9 @@ def cargar_datos():
 
         "Capacidad total GNV": "cap_total_gnv",
         "Capacidad total de GNV": "cap_total_gnv"
+        
+        # DIRECCIÓN
+        "Ubigeo (Dirección)": "direccion"
     })
 
     # ==========================================================
@@ -183,3 +186,4 @@ def datos():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+

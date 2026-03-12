@@ -236,7 +236,7 @@ html, body { height:100%; margin:0; font-family:Arial; }
 <!-- ===== REGULADOR DE DISTANCIA ===== -->
 <div class="distancia-box">
  <label>📏 Radio de búsqueda (metros)</label>
- <input type="range" id="sliderDistancia" min="100" max="1000" step="50" value="500" oninput="actualizarTextoDistancia()">
+ <input type="range" id="sliderDistancia" min="0" max="1000" step="50" value="500" oninput="actualizarTextoDistancia()">
  <div class="distancia-valor" id="txtDistancia">500 m</div>
 </div>
 
@@ -846,7 +846,8 @@ function buscar(){
 
   coincidencias = datos.filter(d=>
    String(d.codigo).toLowerCase().includes(t) ||
-   String(d.razon).toLowerCase().includes(t)
+   String(d.razon).toLowerCase().includes(t) ||
+   String(d.direccion || "").toLowerCase().includes(t)
   );
  }
 

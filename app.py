@@ -65,6 +65,9 @@ def texto_bonito(valor):
 def cargar_datos():
     url = EXCEL_URL + "&t=" + str(int(time.time()))
     df = pd.read_excel(url)
+    print("URL usada:", url)
+    print("Filas leídas:", len(df))
+    print(df.head())
 
     # ==========================================================
     # RENOMBRAR COLUMNAS (INCLUYENDO LAS NUEVAS)

@@ -1,7 +1,6 @@
 from flask import Flask, jsonify, render_template
 import pandas as pd
 import os
-import requests
 import re
 from io import BytesIO
 import time

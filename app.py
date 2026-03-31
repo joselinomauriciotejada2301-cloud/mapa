@@ -1,7 +1,8 @@
 from flask import Flask, jsonify, render_template
 import pandas as pd
 import os
-import re
+import request
+from io import BytesIO
 import time
 
 app = Flask(__name__)
@@ -64,10 +65,18 @@ def texto_bonito(valor):
 
 def cargar_datos():
     url = EXCEL_URL + "&t=" + str(int(time.time()))
-    df = pd.read_excel(url)
-    print("URL usada:", url)
-    print("Filas leídas:", len(df))
-    print(df.head())
+
+    response = requests.get(url)
+    
+    print("Status:", response.status_code)
+
+    if response.status_code != 200:
+        print("Error al descargar Excel")
+        return []
+
+    df = pd.read_excel(BytesIO(response.content))
+
+    print("Filas:", len(df))
 
     # ==========================================================
     # RENOMBRAR COLUMNAS (INCLUYENDO LAS NUEVAS)

@@ -2,10 +2,11 @@ from flask import Flask, jsonify, render_template
 import pandas as pd
 import os
 import re
+import time
 
 app = Flask(__name__)
 
-EXCEL_PATH = "Datosmapa.xlsx"
+EXCEL_URL = "https://osinergmin-my.sharepoint.com/:x:/g/personal/jmauriciot_osinergmin_gob_pe/IQB9djuxDmKzTIgg7tUpDO9GAWiqz4MeQDJ70LOPjbEfAtE?download=1"
 
 
 # ==========================================================
@@ -62,7 +63,8 @@ def texto_bonito(valor):
 
 
 def cargar_datos():
-    df = pd.read_excel(EXCEL_PATH)
+    url = EXCEL_URL + "&t=" + str(int(time.time()))
+    df = pd.read_excel(url)
 
     # ==========================================================
     # RENOMBRAR COLUMNAS (INCLUYENDO LAS NUEVAS)

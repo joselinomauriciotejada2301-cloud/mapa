@@ -741,15 +741,22 @@ function aplicarFiltros(){
  );
 
  dibujarMarcadores(f);
- construirHeatmap(f);
- actualizarContador(f);
- actualizarEstadisticas(f);
 
- if(filtrosActivos){
+ if(
+  valores("f_estado").length ||
+  valores("f_actividad").length ||
+  valores("f_provincia").length ||
+  valores("f_distrito").length ||
+  valores("f_anio").length
+ ){
   mostrarMarcadores();
  }else{
   ocultarMarcadores();
  }
+
+ construirHeatmap(f);
+ actualizarContador(f);
+ actualizarEstadisticas(f);
 
  let distSel = valores("f_distrito");
 

@@ -718,12 +718,20 @@ function valores(id){
 
 /* ===== APLICAR FILTROS ===== */
 function aplicarFiltros(){
+
  modoBusqueda=false;
 
  if(marcadorCoordenadas){
   marcadorCoordenadas.setMap(null);
   marcadorCoordenadas=null;
  }
+
+ const filtrosActivos =
+     valores("f_estado").length ||
+     valores("f_actividad").length ||
+     valores("f_provincia").length ||
+     valores("f_distrito").length ||
+     valores("f_anio").length;
 
  let f=datos.filter(d=>
   (!valores("f_estado").length||valores("f_estado").includes(d.estado)) &&
@@ -738,9 +746,14 @@ function aplicarFiltros(){
  actualizarContador(f);
  actualizarEstadisticas(f);
 
- f.length?mostrarMarcadores():ocultarMarcadores();
+ if(filtrosActivos){
+  mostrarMarcadores();
+ }else{
+  ocultarMarcadores();
+ }
 
  let distSel = valores("f_distrito");
+
  if(distSel.length >= 1){
   resaltarDistritos(distSel);
  }else{

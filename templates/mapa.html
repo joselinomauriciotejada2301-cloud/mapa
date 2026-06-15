@@ -653,9 +653,9 @@ function dibujarMarcadores(lista){
 
   let marker=new google.maps.Marker({
    position:{lat:d.lat,lng:d.lng},
-   map:map,
+   map:null,
    icon:icono
-  });
+});
 
   let info=new google.maps.InfoWindow({
    content:`

@@ -625,9 +625,9 @@ function initMap(){
 }
 
 /* ===== HEATMAP ===== */
-function construirHeatmap(lista){
-  return;
-}
+ function construirHeatmap(lista){
+   return;
+ }
  let puntos=lista.map(d=>({
   location:new google.maps.LatLng(d.lat,d.lng),
   weight:Math.sqrt(d.capacidad_total||1)

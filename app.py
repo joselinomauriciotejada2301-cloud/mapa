@@ -8,7 +8,7 @@ import requests
 
 app = Flask(__name__)
 
-EXCEL_URL = "https://osinergmin-my.sharepoint.com/:x:/g/personal/jmauriciot_osinergmin_gob_pe/IQB9djuxDmKzTIgg7tUpDO9GAWiqz4MeQDJ70LOPjbEfAtE?download=1"
+EXCEL_URL = "https://osinergmin-my.sharepoint.com/:x:/g/personal/ahmolina_osinergmin_gob_pe/IQAtuyCaVOxGSYg0je2d4B-IAdb0is-Mq_e6PN3gixU4Ifo?email=sup2600146%40gmail.com&e=NtWLc9&download=1"
 
 
 # ==========================================================

@@ -6,8 +6,6 @@
 <title>Mapa OSINERGMIN</title>
 
 <link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
-<link rel="stylesheet" href="{{ url_for('static', filename='vendor/markercluster/MarkerCluster.css') }}" />
-<link rel="stylesheet" href="{{ url_for('static', filename='vendor/markercluster/MarkerCluster.Default.css') }}" />
 
 <style>
 html, body { height:100%; margin:0; font-family:Arial, sans-serif; }
@@ -219,6 +217,15 @@ html, body { height:100%; margin:0; font-family:Arial, sans-serif; }
 </div>
 
 <hr>
+<div style="font-size:11px; color:#444; line-height:1.6;">
+ <b>🔺🔷⚪ Formas de los puntos</b><br>
+ <svg width="12" height="12" viewBox="0 0 20 20" style="vertical-align:middle;"><circle cx="10" cy="10" r="8" fill="#888" stroke="white" stroke-width="1.6"/></svg> Agente normal<br>
+ <svg width="12" height="12" viewBox="0 0 20 20" style="vertical-align:middle;"><polygon points="10,1 19,18 1,18" fill="#888" stroke="white" stroke-width="1.6"/></svg> Coincidencia de búsqueda<br>
+ <svg width="12" height="12" viewBox="0 0 20 20" style="vertical-align:middle;"><polygon points="10,1 19,10 10,19 1,10" fill="#888" stroke="white" stroke-width="1.6"/></svg> Estado Cancelado<br>
+ (el color siempre indica la actividad; el número en la esquina indica varios registros con el mismo código muy cerca)
+</div>
+
+<hr>
 <div id="contador"></div>
 
 <div class="stats" id="panelStats">
@@ -238,7 +245,6 @@ html, body { height:100%; margin:0; font-family:Arial, sans-serif; }
 <div id="map"></div>
 
 <script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
-<script src="{{ url_for('static', filename='vendor/markercluster/leaflet.markercluster.js') }}"></script>
 <script src="{{ url_for('static', filename='vendor/heat/leaflet-heat.js') }}"></script>
 
 <script>
@@ -250,7 +256,6 @@ let datos = [];
 let capaMarcadores = null;      // L.markerClusterGroup
 let capaHeatmap = null;         // L.heatLayer
 let heatmapActivo = false;
-let modoBusqueda = false;
 let marcadorCoordenadas = null;
 
 let distritosGeojson = null;
@@ -272,32 +277,129 @@ function colorPorActividad(act){
  return colorActividadMap[act];
 }
 
-/* ===== ICONOS (divIcon, sin depender de ninguna API externa) ===== */
-function iconoActividad(actividad){
- const color = colorPorActividad(actividad);
+/* ===== ICONOS (SVG inline, sin depender de ninguna API externa) =====
+   - circulo   -> agente normal
+   - triangulo -> coincidencia de búsqueda
+   - diamante  -> estado CANCELADO
+   Todas conservan el color de la actividad correspondiente.
+*/
+function svgForma(color, forma, size){
+ size = size || 16;
+ if(forma === "triangulo"){
+  return `<svg width="${size}" height="${size}" viewBox="0 0 20 20">
+   <polygon points="10,1 19,18 1,18" fill="${color}" stroke="white" stroke-width="1.6" stroke-linejoin="round"/>
+  </svg>`;
+ }
+ if(forma === "diamante"){
+  return `<svg width="${size}" height="${size}" viewBox="0 0 20 20">
+   <polygon points="10,1 19,10 10,19 1,10" fill="${color}" stroke="white" stroke-width="1.6" stroke-linejoin="round"/>
+  </svg>`;
+ }
+ return `<svg width="${size}" height="${size}" viewBox="0 0 20 20">
+  <circle cx="10" cy="10" r="8" fill="${color}" stroke="white" stroke-width="1.6"/>
+ </svg>`;
+}
+
+function iconoPunto(color, forma, size){
+ size = size || 16;
  return L.divIcon({
   className: "",
-  html: `<div class="marcador-actividad" style="width:14px;height:14px;background:${color};"></div>`,
-  iconSize: [14,14],
-  iconAnchor: [7,7]
+  html: svgForma(color, forma, size),
+  iconSize: [size, size],
+  iconAnchor: [size/2, size/2]
  });
 }
 
-function iconoPinRojo(){
+/* Icono para un grupo de registros con el MISMO código Osinergmin muy cerca entre sí */
+function iconoGrupo(color, forma, cantidad){
+ const size = 24;
  return L.divIcon({
   className: "",
-  html: `<div class="marcador-actividad" style="width:18px;height:18px;background:#d93025;"></div>`,
-  iconSize: [18,18],
-  iconAnchor: [9,9]
+  html: `<div style="position:relative;width:${size}px;height:${size}px;">
+   ${svgForma(color, forma, size)}
+   <div style="position:absolute;top:-6px;right:-6px;background:#222;color:white;border-radius:50%;
+    width:16px;height:16px;font-size:10px;line-height:16px;text-align:center;font-weight:bold;
+    box-shadow:0 0 2px rgba(0,0,0,.6);">${cantidad}</div>
+  </div>`,
+  iconSize: [size, size],
+  iconAnchor: [size/2, size/2]
  });
+}
+
+/* Determina qué figura corresponde a un registro (sin agrupar) */
+function formaDe(d, esCoincidencia){
+ if(esCoincidencia) return "triangulo";
+ let estado = String(d.estado||"").toUpperCase();
+ if(estado.includes("CANCELADO")) return "diamante";
+ return "circulo";
 }
 
 function iconoPuntoAzul(){
  return L.divIcon({
   className: "",
-  html: `<div class="marcador-actividad" style="width:16px;height:16px;background:#1a73e8;"></div>`,
-  iconSize: [16,16],
-  iconAnchor: [8,8]
+  html: svgForma("#1a73e8", "circulo", 18),
+  iconSize: [18,18],
+  iconAnchor: [9,9]
+ });
+}
+
+/* ==========================================================
+   🧩 AGRUPACIÓN SOLO POR MISMO CÓDIGO OSINERGMIN Y CERCANÍA
+   (ya no se agrupa por proximidad genérica como antes)
+   ========================================================== */
+function agruparPorCodigoCercano(lista, radioMetros){
+ radioMetros = radioMetros || 25; // distancia máxima para considerarlos "el mismo punto"
+ let grupos = [];
+
+ lista.forEach(d=>{
+  if(d.lat == null || d.lng == null) return;
+  let cod = String(d.codigo||"").trim();
+  let latlng = L.latLng(d.lat, d.lng);
+
+  let grupo = grupos.find(g => g.codigo === cod && g.centro.distanceTo(latlng) <= radioMetros);
+  if(grupo){
+   grupo.items.push(d);
+  }else{
+   grupos.push({ codigo: cod, centro: latlng, items: [d] });
+  }
+ });
+
+ return grupos;
+}
+
+/* Construye y agrega al layerGroup todos los marcadores de "lista".
+   coincidenciasKeys (opcional): Set con claves de registros que son
+   coincidencia de búsqueda (se dibujan como triángulo). */
+function claveRegistro(d){
+ return String(d.codigo||"")+"|"+String(d.registro||"")+"|"+String(d.lat)+"|"+String(d.lng);
+}
+
+function dibujarEnCapa(lista, coincidenciasKeys){
+ coincidenciasKeys = coincidenciasKeys || new Set();
+ capaMarcadores.clearLayers();
+
+ let grupos = agruparPorCodigoCercano(lista);
+
+ grupos.forEach(g=>{
+  if(g.items.length === 1){
+   let d = g.items[0];
+   let esCoincidencia = coincidenciasKeys.has(claveRegistro(d));
+   let color = colorPorActividad(d.actividad);
+   let forma = formaDe(d, esCoincidencia);
+   let marker = L.marker([d.lat, d.lng], {icon: iconoPunto(color, forma)});
+   marker.bindPopup(contenidoPopup(d));
+   capaMarcadores.addLayer(marker);
+  }else{
+   let primero = g.items[0];
+   let esCoincidencia = g.items.some(d=>coincidenciasKeys.has(claveRegistro(d)));
+   let color = colorPorActividad(primero.actividad);
+   let forma = formaDe(primero, esCoincidencia);
+   let marker = L.marker([g.centro.lat, g.centro.lng], {icon: iconoGrupo(color, forma, g.items.length)});
+   let html = `<b>${g.items.length} registros con el código ${primero.codigo} en este punto</b><hr style="margin:6px 0;">`
+    + g.items.map(d=>contenidoPopup(d)).join('<hr style="margin:8px 0;border-top:2px dashed #999;">');
+   marker.bindPopup(html, {maxWidth: 320, maxHeight: 320});
+   capaMarcadores.addLayer(marker);
+  }
  });
 }
 
@@ -494,11 +596,10 @@ function initMap(){
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
  }).addTo(map);
 
- capaMarcadores = L.markerClusterGroup({
-  disableClusteringAtZoom: 17,
-  maxClusterRadius: 45,
-  spiderfyOnMaxZoom: true
- });
+ // Sin agrupación genérica por proximidad: se listan todos los puntos.
+ // Solo se agrupan registros con el MISMO código Osinergmin muy cerca entre sí
+ // (ver dibujarEnCapa / agruparPorCodigoCercano).
+ capaMarcadores = L.layerGroup();
 
  cargarGeojsonDistritos();
 
@@ -547,14 +648,7 @@ function contenidoPopup(d){
 
 /* ===== MARCADORES ===== */
 function dibujarMarcadores(lista){
- capaMarcadores.clearLayers();
-
- lista.forEach(d=>{
-  let icono = modoBusqueda ? iconoPinRojo() : iconoActividad(d.actividad);
-  let marker = L.marker([d.lat, d.lng], {icon: icono});
-  marker.bindPopup(contenidoPopup(d));
-  capaMarcadores.addLayer(marker);
- });
+ dibujarEnCapa(lista);
 }
 
 function mostrarMarcadores(){ if(!map.hasLayer(capaMarcadores)) map.addLayer(capaMarcadores); }
@@ -621,7 +715,6 @@ function valores(id){
 }
 
 function aplicarFiltros(){
- modoBusqueda = false;
 
  if(marcadorCoordenadas){ map.removeLayer(marcadorCoordenadas); marcadorCoordenadas = null; }
 
@@ -700,10 +793,6 @@ function buscar(){
 
  const radioMetros = parseInt(document.getElementById("sliderDistancia").value);
 
- function clave(d){
-  return String(d.codigo||"")+"|"+String(d.registro||"")+"|"+String(d.lat)+"|"+String(d.lng);
- }
-
  let listaCodigos = obtenerListaCodigosDesdeTexto(texto);
  let esMultiCodigo = (listaCodigos.length >= 2);
  let coincidencias = [];
@@ -726,29 +815,21 @@ function buscar(){
  if(!coincidencias.length){ alert("No se encontraron coincidencias"); return; }
 
  let setIncluidos = new Map();
- coincidencias.forEach(d=>setIncluidos.set(clave(d), d));
+ coincidencias.forEach(d=>setIncluidos.set(claveRegistro(d), d));
 
  datos.forEach(d=>{
   if(d.lat == null || d.lng == null) return;
   for(let c of coincidencias){
    if(c.lat == null || c.lng == null) continue;
    let dist = L.latLng(d.lat,d.lng).distanceTo(L.latLng(c.lat,c.lng));
-   if(dist <= radioMetros){ setIncluidos.set(clave(d), d); break; }
+   if(dist <= radioMetros){ setIncluidos.set(claveRegistro(d), d); break; }
   }
  });
 
  let r = Array.from(setIncluidos.values());
- let clavesCoin = new Set(coincidencias.map(d=>clave(d)));
+ let clavesCoin = new Set(coincidencias.map(d=>claveRegistro(d)));
 
- modoBusqueda = false; // usamos icono normal + resaltamos coincidencias aparte
- capaMarcadores.clearLayers();
- r.forEach(d=>{
-  let esCoincidencia = clavesCoin.has(clave(d));
-  let icono = esCoincidencia ? iconoPinRojo() : iconoActividad(d.actividad);
-  let marker = L.marker([d.lat, d.lng], {icon: icono});
-  marker.bindPopup(contenidoPopup(d));
-  capaMarcadores.addLayer(marker);
- });
+ dibujarEnCapa(r, clavesCoin);
  _ultimaLista = r;
  construirHeatmap(r);
 
@@ -782,7 +863,6 @@ function buscarCoordenadas(){
  if(isNaN(lat) || isNaN(lng)){ alert("Coordenadas inválidas. Usa números. Ej: -12.0464, -77.0428"); return; }
  if(lat < -90 || lat > 90 || lng < -180 || lng > 180){ alert("Coordenadas fuera de rango."); return; }
 
- modoBusqueda = false;
  if(marcadorCoordenadas){ map.removeLayer(marcadorCoordenadas); marcadorCoordenadas = null; }
  limpiarResaltadoDistrito();
 
@@ -823,7 +903,6 @@ function buscarCoordenadas(){
 
 /* ===== RESET ===== */
 function resetFiltros(){
- modoBusqueda = false;
  if(marcadorCoordenadas){ map.removeLayer(marcadorCoordenadas); marcadorCoordenadas = null; }
  limpiarResaltadoDistrito();
 

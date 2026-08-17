@@ -1,18 +1,24 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Mapa OSINERGMIN</title>
 
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/leaflet/leaflet.css') }}" />
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/markercluster/MarkerCluster.css') }}" />
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/markercluster/MarkerCluster.Default.css') }}" />
+
 <style>
-html, body { height:100%; margin:0; font-family:Arial; }
-#map { height:100%; }
+html, body { height:100%; margin:0; font-family:Arial, sans-serif; }
+#map { height:100%; background:#dce6ea; }
 
 /* ===== PANEL IZQUIERDO ===== */
 .panel{
- position:absolute; top:10px; left:10px; z-index:5;
+ position:absolute; top:10px; left:10px; z-index:900;
  background:white; padding:12px; border-radius:8px;
- box-shadow:2px 2px 6px #999; width:330px; font-size:13px;
+ box-shadow:2px 2px 6px rgba(0,0,0,.25); width:330px; font-size:13px;
+ max-height:calc(100% - 20px); overflow-y:auto;
 }
 
 /* ===== PANEL FILTROS HORIZONTAL ARRIBA ===== */
@@ -21,11 +27,11 @@ html, body { height:100%; margin:0; font-family:Arial; }
  top:10px;
  left:360px;
  right:10px;
- z-index:6;
+ z-index:900;
  background:white;
  padding:10px 12px;
  border-radius:10px;
- box-shadow:2px 2px 6px #999;
+ box-shadow:2px 2px 6px rgba(0,0,0,.25);
  display:flex;
  gap:10px;
  align-items:flex-end;
@@ -33,7 +39,6 @@ html, body { height:100%; margin:0; font-family:Arial; }
  font-size:13px;
 }
 
-/* ===== CADA BLOQUE DE FILTRO ===== */
 .filtroItem{
  display:flex;
  flex-direction:column;
@@ -48,7 +53,6 @@ html, body { height:100%; margin:0; font-family:Arial; }
  color:#444;
 }
 
-/* Selects horizontales */
 .panelFiltros select{
  height:30px;
  border-radius:6px;
@@ -57,7 +61,6 @@ html, body { height:100%; margin:0; font-family:Arial; }
  width:100%;
 }
 
-/* Botón limpiar filtros en horizontal */
 .panelFiltros button{
  height:32px;
  padding:0 14px;
@@ -67,115 +70,71 @@ html, body { height:100%; margin:0; font-family:Arial; }
  background:#f6f6f6;
  font-weight:bold;
 }
+.panelFiltros button:hover{ background:#ededed; }
 
-/* Hover */
-.panelFiltros button:hover{
- background:#ededed;
-}
-
-/* ===== INPUTS Y BOTONES DEL PANEL IZQUIERDO ===== */
 .panel select, .panel input, .panel button{
- width:100%; margin-bottom:6px;
+ width:100%; margin-bottom:6px; box-sizing:border-box;
 }
-
 .panel select{ height:28px; }
 
 .stats{
  margin-top:8px; font-size:12px;
- max-height:250px; overflow:auto; display:none;
+ max-height:220px; overflow:auto; display:none;
 }
-
-.legend{ display:none; }
 
 .color-box{
  display:inline-block;
- width:10px;
- height:10px;
- margin-right:6px;
- border-radius:2px;
+ width:10px; height:10px;
+ margin-right:6px; border-radius:2px;
 }
 
-/* ===== SLIDER DISTANCIA ===== */
 .distancia-box{
- margin: 6px 0 10px 0;
- padding: 8px;
- border: 1px solid #ddd;
- border-radius: 6px;
- background: #fafafa;
+ margin: 6px 0 10px 0; padding: 8px;
+ border: 1px solid #ddd; border-radius: 6px; background: #fafafa;
 }
+.distancia-box label{ font-size: 12px; font-weight: bold; display:block; margin-bottom: 6px; }
+.distancia-box input[type="range"]{ width:100%; }
+.distancia-valor{ font-size: 12px; margin-top: 4px; text-align:right; font-weight:bold; }
 
-.distancia-box label{
- font-size: 12px;
- font-weight: bold;
- display:block;
- margin-bottom: 6px;
-}
-
-.distancia-box input[type="range"]{
- width:100%;
-}
-
-.distancia-valor{
- font-size: 12px;
- margin-top: 4px;
- text-align:right;
- font-weight:bold;
-}
-
-/* ===== MEDICION ===== */
 .medicion-box{
- margin-top: 6px;
- padding: 8px;
- border: 1px solid #ddd;
- border-radius: 6px;
- background: #f7fbff;
+ margin-top: 6px; padding: 8px;
+ border: 1px solid #ddd; border-radius: 6px; background: #f7fbff;
 }
+.medicion-box b{ display:block; margin-bottom:6px; }
+.medicion-dist{ font-size: 12px; margin-top: 6px; font-weight: bold; text-align: right; }
 
-.medicion-box b{
- display:block;
- margin-bottom:6px;
-}
+.btn-on{ background:#1a73e8; color:white; border:none; padding:6px; border-radius:6px; cursor:pointer; }
 
-.medicion-dist{
- font-size: 12px;
- margin-top: 6px;
- font-weight: bold;
- text-align: right;
-}
-
-.btn-on{
- background:#1a73e8;
- color:white;
- border:none;
- padding:6px;
- border-radius:6px;
- cursor:pointer;
-}
-
-/* ===== BOTON RESALTADO DISTRITOS ===== */
 .btn-toggle-distritos{
- background:#f6f6f6;
- border:1px solid #ccc;
- padding:8px;
- border-radius:8px;
- cursor:pointer;
- font-weight:bold;
+ background:#f6f6f6; border:1px solid #ccc; padding:8px;
+ border-radius:8px; cursor:pointer; font-weight:bold;
 }
-.btn-toggle-distritos.on{
- background:#1a73e8;
- color:white;
- border:none;
+.btn-toggle-distritos.on{ background:#1a73e8; color:white; border:none; }
+
+.estado-datos{
+ margin-top:10px; padding-top:8px; border-top:1px solid #eee;
+ font-size:11px; color:#666; line-height:1.5;
+}
+.estado-datos button{
+ margin-top:4px; font-size:11px; padding:4px 8px; width:auto;
+ border-radius:6px; border:1px solid #ccc; background:#f6f6f6; cursor:pointer;
+}
+
+.leyenda-actividad{
+ margin-top:8px; font-size:11px; max-height:120px; overflow-y:auto;
+}
+
+/* Icono divIcon para actividades */
+.marcador-actividad{
+ border-radius:50%;
+ border:2px solid white;
+ box-shadow:0 0 3px rgba(0,0,0,.5);
 }
 
 /* ===== RESPONSIVE ===== */
 @media(max-width:900px){
- .panelFiltros{
-  left:10px;
-  top:320px;
- }
- .panel{
-  width:320px;
- }
+ .panelFiltros{ left:10px; top:340px; right:10px; }
+ .panel{ width:320px; }
 }
 </style>
 </head>
@@ -184,34 +143,27 @@ html, body { height:100%; margin:0; font-family:Arial; }
 
 <!-- ===== FILTROS ARRIBA HORIZONTAL ===== -->
 <div class="panelFiltros">
-
  <div class="filtroItem">
   <label>Estado</label>
   <select id="f_estado" multiple size="1"></select>
  </div>
-
  <div class="filtroItem">
   <label>Actividad</label>
   <select id="f_actividad" multiple size="1"></select>
  </div>
-
  <div class="filtroItem">
   <label>Provincia</label>
   <select id="f_provincia" multiple size="1"></select>
  </div>
-
  <div class="filtroItem">
   <label>Distrito</label>
   <select id="f_distrito" multiple size="1"></select>
  </div>
-
  <div class="filtroItem">
   <label>Año (Última fiscalización)</label>
   <select id="f_anio" multiple size="1"></select>
  </div>
-
  <button onclick="resetFiltros()">Limpiar filtros</button>
-
 </div>
 
 <!-- ===== PANEL IZQUIERDO VERTICAL ===== -->
@@ -222,18 +174,15 @@ html, body { height:100%; margin:0; font-family:Arial; }
 
 <hr>
 
-<!-- ===== NUEVO: BOTON ON/OFF RESALTADO DISTRITAL ===== -->
 <button id="btnToggleDistritos" class="btn-toggle-distritos on" onclick="toggleResaltadoDistritos()">
 🏘️ Resaltado distrital: ON
 </button>
 
-<!-- ===== NUEVO: BUSCAR POR COORDENADAS ===== -->
 <hr>
 <b>📍 Buscar por coordenadas</b>
 <input type="text" id="buscadorCoord" placeholder="Ej: -12.0464, -77.0428">
 <button onclick="buscarCoordenadas()">Buscar coordenadas</button>
 
-<!-- ===== REGULADOR DE DISTANCIA ===== -->
 <div class="distancia-box">
  <label>📏 Radio de búsqueda (metros)</label>
  <input type="range" id="sliderDistancia" min="0" max="1000" step="50" value="500" oninput="actualizarTextoDistancia()">
@@ -241,11 +190,9 @@ html, body { height:100%; margin:0; font-family:Arial; }
 </div>
 
 <hr>
-<button onclick="toggleHeatmap()">🔥 Activar / Desactivar Mapa de Calor</button>
+<button id="btnHeatmap" onclick="toggleHeatmap()">🔥 Activar / Desactivar Mapa de Calor</button>
 
 <hr>
-
-<!-- ===== MEDIR DISTANCIA ===== -->
 <div class="medicion-box">
  <b>📏 Medir distancia</b>
  <button id="btnMedir" onclick="toggleMedicion()">Activar medición</button>
@@ -262,34 +209,162 @@ html, body { height:100%; margin:0; font-family:Arial; }
  <div id="stats_total"></div>
 </div>
 
+<div class="estado-datos" id="estadoDatos">
+ Cargando estado de datos...
+ <br>
+ <button onclick="actualizarDatosAhora()">🔄 Actualizar datos ahora</button>
+</div>
+
 </div>
 
 <div id="map"></div>
 
-<script>
-let map, datos=[], marcadores=[], heatmap;
-let heatmapActivo=false;
-let modoBusqueda=false;
+<script src="{{ url_for('static', filename='vendor/leaflet/leaflet.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/markercluster/leaflet.markercluster.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/heat/leaflet-heat.js') }}"></script>
 
-/* ===== NUEVO: MARCADOR PARA COORDENADAS ===== */
+<script>
+/* ==========================================================
+   ESTADO GLOBAL
+   ========================================================== */
+let map;
+let datos = [];
+let capaMarcadores = null;      // L.markerClusterGroup
+let capaHeatmap = null;         // L.heatLayer
+let heatmapActivo = false;
+let modoBusqueda = false;
 let marcadorCoordenadas = null;
 
-/* ==========================================================
-   🗺️ DISTRITOS (RESALTADO MULTIPLE)
-   ========================================================== */
 let distritosGeojson = null;
-let distritosResaltados = [];
-
-/* ==========================================================
-   ✅ NUEVO: CONTROL ON/OFF RESALTADO DISTRITAL
-   ========================================================== */
+let capaDistritosResaltados = null; // L.geoJSON
 let resaltadoDistritalActivo = true;
 
+/* ========= COLORES POR ACTIVIDAD ========= */
+const paletaColores = [
+ "#e74c3c","#3498db","#2ecc71","#f1c40f","#9b59b6",
+ "#1abc9c","#e67e22","#34495e","#d35400","#16a085"
+];
+const colorActividadMap = {};
+
+function colorPorActividad(act){
+ if(!colorActividadMap[act]){
+  const i = Object.keys(colorActividadMap).length % paletaColores.length;
+  colorActividadMap[act] = paletaColores[i];
+ }
+ return colorActividadMap[act];
+}
+
+/* ===== ICONOS (divIcon, sin depender de ninguna API externa) ===== */
+function iconoActividad(actividad){
+ const color = colorPorActividad(actividad);
+ return L.divIcon({
+  className: "",
+  html: `<div class="marcador-actividad" style="width:14px;height:14px;background:${color};"></div>`,
+  iconSize: [14,14],
+  iconAnchor: [7,7]
+ });
+}
+
+function iconoPinRojo(){
+ return L.divIcon({
+  className: "",
+  html: `<div class="marcador-actividad" style="width:18px;height:18px;background:#d93025;"></div>`,
+  iconSize: [18,18],
+  iconAnchor: [9,9]
+ });
+}
+
+function iconoPuntoAzul(){
+ return L.divIcon({
+  className: "",
+  html: `<div class="marcador-actividad" style="width:16px;height:16px;background:#1a73e8;"></div>`,
+  iconSize: [16,16],
+  iconAnchor: [8,8]
+ });
+}
+
+/* ===== SLIDER ===== */
+function actualizarTextoDistancia(){
+ let v = document.getElementById("sliderDistancia").value;
+ document.getElementById("txtDistancia").innerText = v + " m";
+}
+
+/* ==========================================================
+   📏 MEDICION DE DISTANCIA
+   ========================================================== */
+let medicionActiva = false;
+let puntosMedicion = [];
+let polylineMedicion = null;
+let marcadoresMedicion = [];
+
+function toggleMedicion(){
+ medicionActiva = !medicionActiva;
+ let btn = document.getElementById("btnMedir");
+ if(medicionActiva){
+  btn.innerText = "Desactivar medición";
+  btn.classList.add("btn-on");
+  map.on("click", onClickMedicion);
+  map.getContainer().style.cursor = "crosshair";
+ }else{
+  btn.innerText = "Activar medición";
+  btn.classList.remove("btn-on");
+  map.off("click", onClickMedicion);
+  map.getContainer().style.cursor = "";
+ }
+}
+
+function onClickMedicion(e){
+ agregarPuntoMedicion(e.latlng);
+}
+
+function agregarPuntoMedicion(latlng){
+ puntosMedicion.push(latlng);
+
+ let m = L.circleMarker(latlng, {
+  radius: 5, color:"#ffffff", weight:2,
+  fillColor:"#1a73e8", fillOpacity:1
+ }).addTo(map);
+ marcadoresMedicion.push(m);
+
+ if(!polylineMedicion){
+  polylineMedicion = L.polyline(puntosMedicion, {color:"#1a73e8", weight:3}).addTo(map);
+ }else{
+  polylineMedicion.setLatLngs(puntosMedicion);
+ }
+
+ actualizarDistanciaMedicion();
+}
+
+function actualizarDistanciaMedicion(){
+ if(puntosMedicion.length < 2){
+  document.getElementById("txtMedicion").innerText = "0 m";
+  return;
+ }
+ let total = 0;
+ for(let i=1;i<puntosMedicion.length;i++){
+  total += puntosMedicion[i-1].distanceTo(puntosMedicion[i]);
+ }
+ if(total < 1000){
+  document.getElementById("txtMedicion").innerText = total.toFixed(0) + " m";
+ }else{
+  document.getElementById("txtMedicion").innerText = (total/1000).toFixed(2) + " km";
+ }
+}
+
+function limpiarMedicion(){
+ puntosMedicion = [];
+ marcadoresMedicion.forEach(m=>map.removeLayer(m));
+ marcadoresMedicion = [];
+ if(polylineMedicion){ map.removeLayer(polylineMedicion); polylineMedicion = null; }
+ document.getElementById("txtMedicion").innerText = "0 m";
+}
+
+/* ==========================================================
+   🏘️ DISTRITOS (RESALTADO)
+   ========================================================== */
 function toggleResaltadoDistritos(){
  resaltadoDistritalActivo = !resaltadoDistritalActivo;
-
  let btn = document.getElementById("btnToggleDistritos");
-
  if(resaltadoDistritalActivo){
   btn.innerText = "🏘️ Resaltado distrital: ON";
   btn.classList.add("on");
@@ -300,284 +375,64 @@ function toggleResaltadoDistritos(){
  }
 }
 
-/* ========= COLORES POR ACTIVIDAD ========= */
-const paletaColores=[
- "#e74c3c","#3498db","#2ecc71","#f1c40f","#9b59b6",
- "#1abc9c","#e67e22","#34495e","#d35400","#16a085"
-];
-const colorActividadMap={};
-
-function colorPorActividad(act){
- if(!colorActividadMap[act]){
-  const i=Object.keys(colorActividadMap).length % paletaColores.length;
-  colorActividadMap[act]=paletaColores[i];
- }
- return colorActividadMap[act];
-}
-
-/* ===== PIN ROJO PARA COINCIDENCIAS ===== */
-function iconoPinRojo(){
- return {
-  path: "M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z",
-  fillColor: "#d93025",
-  fillOpacity: 1,
-  strokeColor: "#ffffff",
-  strokeWeight: 2,
-  scale: 1.6,
-  anchor: new google.maps.Point(12, 22)
- };
-}
-
-/* ===== ICONO NORMAL POR ACTIVIDAD ===== */
-function iconoActividad(actividad){
- return {
-  path: google.maps.SymbolPath.BACKWARD_CLOSED_ARROW,
-  scale: 5,
-  fillColor: colorPorActividad(actividad),
-  fillOpacity: 1,
-  strokeWeight: 1
- };
-}
-
-/* ===== ICONO AZUL PARA COORDENADAS ===== */
-function iconoPuntoAzul(){
- return {
-  path: google.maps.SymbolPath.CIRCLE,
-  scale: 8,
-  fillColor: "#1a73e8",
-  fillOpacity: 1,
-  strokeColor: "#ffffff",
-  strokeWeight: 2
- };
-}
-
-/* ===== SLIDER ===== */
-function actualizarTextoDistancia(){
- let v = document.getElementById("sliderDistancia").value;
- document.getElementById("txtDistancia").innerText = v + " m";
-}
-
-/* ==========================================================
-   📏 MEDICION DE DISTANCIA (TIPO GOOGLE MAPS)
-   ========================================================== */
-let medicionActiva=false;
-let puntosMedicion=[];
-let polylineMedicion=null;
-let marcadoresMedicion=[];
-let listenerClickMedicion=null;
-let listenerDblClickMedicion=null;
-
-function toggleMedicion(){
- medicionActiva=!medicionActiva;
-
- let btn=document.getElementById("btnMedir");
- if(medicionActiva){
-  btn.innerText="Desactivar medición";
-  btn.classList.add("btn-on");
-  activarMedicion();
- }else{
-  btn.innerText="Activar medición";
-  btn.classList.remove("btn-on");
-  desactivarMedicion();
- }
-}
-
-function activarMedicion(){
- listenerClickMedicion = map.addListener("click", (e)=>{
-  agregarPuntoMedicion(e.latLng);
- });
-
- listenerDblClickMedicion = map.addListener("dblclick", (e)=>{
-  e.stop();
-  finalizarMedicion();
- });
-}
-
-function desactivarMedicion(){
- if(listenerClickMedicion) google.maps.event.removeListener(listenerClickMedicion);
- if(listenerDblClickMedicion) google.maps.event.removeListener(listenerDblClickMedicion);
- listenerClickMedicion=null;
- listenerDblClickMedicion=null;
-}
-
-function agregarPuntoMedicion(latLng){
- puntosMedicion.push(latLng);
-
- let m=new google.maps.Marker({
-  position: latLng,
-  map: map,
-  icon:{
-   path: google.maps.SymbolPath.CIRCLE,
-   scale: 5,
-   fillColor: "#1a73e8",
-   fillOpacity: 1,
-   strokeColor: "#ffffff",
-   strokeWeight: 2
-  }
- });
- marcadoresMedicion.push(m);
-
- if(!polylineMedicion){
-  polylineMedicion=new google.maps.Polyline({
-   map: map,
-   path: puntosMedicion,
-   strokeColor: "#1a73e8",
-   strokeOpacity: 1,
-   strokeWeight: 3
-  });
- }else{
-  polylineMedicion.setPath(puntosMedicion);
- }
-
- actualizarDistanciaMedicion();
-}
-
-function actualizarDistanciaMedicion(){
- if(puntosMedicion.length<2){
-  document.getElementById("txtMedicion").innerText="0 m";
-  return;
- }
-
- let total=0;
- for(let i=1;i<puntosMedicion.length;i++){
-  total += google.maps.geometry.spherical.computeDistanceBetween(
-   puntosMedicion[i-1],
-   puntosMedicion[i]
-  );
- }
-
- if(total<1000){
-  document.getElementById("txtMedicion").innerText = total.toFixed(0) + " m";
- }else{
-  document.getElementById("txtMedicion").innerText = (total/1000).toFixed(2) + " km";
- }
-}
-
-function finalizarMedicion(){}
-
-function limpiarMedicion(){
- puntosMedicion=[];
- marcadoresMedicion.forEach(m=>m.setMap(null));
- marcadoresMedicion=[];
- if(polylineMedicion) polylineMedicion.setMap(null);
- polylineMedicion=null;
- document.getElementById("txtMedicion").innerText="0 m";
-}
-
-/* ==========================================================
-   🗺️ CARGAR GEOJSON DE DISTRITOS
-   ========================================================== */
 function cargarGeojsonDistritos(){
  fetch("/static/distritos.geojson.json")
   .then(r=>r.json())
-  .then(g=>{
-   distritosGeojson = g;
-  })
-  .catch(err=>{
-   console.log("No se pudo cargar distritos.geojson.json", err);
-  });
+  .then(g=>{ distritosGeojson = g; })
+  .catch(err=>console.log("No se pudo cargar distritos.geojson.json", err));
 }
 
-/* ==========================================================
-   🗺️ LIMPIAR DISTRITOS RESALTADOS (AHORA MULTIPLE)
-   ========================================================== */
 function limpiarResaltadoDistrito(){
- if(distritosResaltados.length){
-  distritosResaltados.forEach(capa=>{
-   capa.setMap(null);
-  });
+ if(capaDistritosResaltados){
+  map.removeLayer(capaDistritosResaltados);
+  capaDistritosResaltados = null;
  }
- distritosResaltados=[];
 }
 
-/* ==========================================================
-   🎨 COLORES DISTINTOS PARA MULTI-DISTRITO
-   ========================================================== */
 const paletaDistritos = [
  "#e74c3c","#3498db","#2ecc71","#f1c40f","#9b59b6",
  "#1abc9c","#e67e22","#34495e","#d35400","#16a085",
  "#c0392b","#2980b9","#27ae60","#f39c12","#8e44ad"
 ];
 
-/* ==========================================================
-   🏘️ RESALTAR 1 O VARIOS DISTRITOS
-   ========================================================== */
 function resaltarDistritos(listaDistritos){
  if(!resaltadoDistritalActivo) return;
  if(!distritosGeojson || !distritosGeojson.features) return;
 
  limpiarResaltadoDistrito();
-
  if(!listaDistritos || !listaDistritos.length) return;
 
  let seleccion = listaDistritos.map(x=>String(x).trim().toUpperCase());
 
  let features = distritosGeojson.features.filter(f=>{
-  let nd = (f.properties?.nombdist || "").toString().trim().toUpperCase();
+  let nd = (f.properties && f.properties.nombdist || "").toString().trim().toUpperCase();
   return seleccion.includes(nd);
  });
 
  if(!features.length) return;
 
- let bounds = new google.maps.LatLngBounds();
-
- if(features.length === 1){
-  let feature = features[0];
-
-  let capa = new google.maps.Data();
-  capa.addGeoJson(feature);
-
-  capa.setStyle({
-   fillColor: "#ff0000",
-   fillOpacity: 0.15,
-   strokeColor: "#ff0000",
-   strokeOpacity: 0.9,
-   strokeWeight: 2
-  });
-
-  capa.setMap(map);
-  distritosResaltados.push(capa);
-
-  capa.forEach(ft=>{
-   ft.getGeometry().forEachLatLng(latlng=>{
-    bounds.extend(latlng);
-   });
-  });
-
-  map.fitBounds(bounds);
-  return;
- }
-
- features.forEach((feature, idx)=>{
-  let color = paletaDistritos[idx % paletaDistritos.length];
-
-  let capa = new google.maps.Data();
-  capa.addGeoJson(feature);
-
-  capa.setStyle({
-   fillColor: color,
-   fillOpacity: 0.08,
-   strokeColor: color,
-   strokeOpacity: 0.95,
-   strokeWeight: 2
-  });
-
-  capa.setMap(map);
-  distritosResaltados.push(capa);
-
-  capa.forEach(ft=>{
-   ft.getGeometry().forEachLatLng(latlng=>{
-    bounds.extend(latlng);
-   });
-  });
+ let coloresPorDistrito = {};
+ features.forEach((f, idx)=>{
+  let nd = (f.properties && f.properties.nombdist || "").toString().trim().toUpperCase();
+  coloresPorDistrito[nd] = features.length === 1 ? "#ff0000" : paletaDistritos[idx % paletaDistritos.length];
  });
 
- map.fitBounds(bounds);
+ capaDistritosResaltados = L.geoJSON(features, {
+  style: (feature)=>{
+   let nd = (feature.properties && feature.properties.nombdist || "").toString().trim().toUpperCase();
+   let color = coloresPorDistrito[nd] || "#ff0000";
+   return {
+    color: color,
+    weight: 2,
+    fillColor: color,
+    fillOpacity: features.length === 1 ? 0.15 : 0.08
+   };
+  }
+ }).addTo(map);
+
+ map.fitBounds(capaDistritosResaltados.getBounds());
 }
 
-/* ==========================================================
-   ✅ NUEVO: RESALTAR DISTRITOS SEGÚN RESULTADOS (BÚSQUEDA)
-   ========================================================== */
 function resaltarDistritosDeResultados(listaResultados){
  if(!resaltadoDistritalActivo) return;
 
@@ -587,9 +442,7 @@ function resaltarDistritosDeResultados(listaResultados){
  }
 
  let distritos = [...new Set(
-  listaResultados
-   .map(x=>String(x.distrito || "").trim())
-   .filter(x=>x.length>0)
+  listaResultados.map(x=>String(x.distrito||"").trim()).filter(x=>x.length>0)
  )];
 
  if(distritos.length){
@@ -599,16 +452,28 @@ function resaltarDistritosDeResultados(listaResultados){
  }
 }
 
-/* ===== MAPA ===== */
+/* ==========================================================
+   🗺️ MAPA
+   ========================================================== */
 function initMap(){
- map=new google.maps.Map(document.getElementById("map"),{
-  center:{lat:-12.05,lng:-77.05}, zoom:11
+ map = L.map("map", { preferCanvas:true }).setView([-12.05, -77.05], 11);
+
+ // Teselas gratuitas, sin API key ni facturación (CARTO Voyager sobre OpenStreetMap)
+ L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+  maxZoom: 19,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+ }).addTo(map);
+
+ capaMarcadores = L.markerClusterGroup({
+  disableClusteringAtZoom: 17,
+  maxClusterRadius: 45,
+  spiderfyOnMaxZoom: true
  });
 
  cargarGeojsonDistritos();
 
  fetch("/datos").then(r=>r.json()).then(d=>{
-  datos=d.map(x=>{
+  datos = d.map(x=>{
    if(x.fiscalizacion){
     const match = String(x.fiscalizacion).match(/\b(19|20)\d{2}\b/);
     x._anioFiscalizacion = match ? match[0] : null;
@@ -617,308 +482,252 @@ function initMap(){
   });
 
   cargarFiltros();
-  dibujarMarcadores(datos);
-  construirHeatmap(datos);
   actualizarContador(datos);
   actualizarTextoDistancia();
+  cargarEstadoDatos();
  });
 }
 
-/* ===== HEATMAP ===== */
-
-function construirHeatmap(lista){
-  return;
-}
-
-function toggleHeatmap(){
-  alert("Google eliminó HeatmapLayer de Maps API.");
+/* ===== POPUP ===== */
+function contenidoPopup(d){
+ return `
+  <b>${d.razon}</b><br>
+  Código: ${d.codigo}<br>
+  Registro: ${d.registro}<br>
+  Distrito: ${d.distrito}<br>
+  Estado: ${d.estado}<br>
+  Última fiscalización: ${d.fiscalizacion}<br>
+  Dirección: ${d.direccion}<br>
+  <hr style="margin:6px 0;">
+  <b>Capacidades</b><br>
+  Capacidad total GLP: ${d.cap_total_glp_txt}<br>
+  Capacidad total CL: ${d.cap_total_cl_txt}<br>
+  GLP en cilindros: ${d.glp_cilindros_txt}<br>
+  Capacidad total GNV: ${d.cap_total_gnv_txt}<br>
+  <b>Capacidad total:</b> ${d.capacidad_total}<br>
+  <hr style="margin:6px 0;">
+  Latitud: ${d.lat}<br>
+  Longitud: ${d.lng}`;
 }
 
 /* ===== MARCADORES ===== */
 function dibujarMarcadores(lista){
- marcadores.forEach(m=>m.setMap(null));
- marcadores=[];
+ capaMarcadores.clearLayers();
 
  lista.forEach(d=>{
   let icono = modoBusqueda ? iconoPinRojo() : iconoActividad(d.actividad);
-
-  let marker=new google.maps.Marker({
-   position:{lat:d.lat,lng:d.lng},
-   map:null,
-   icon:icono
-});
-
-  let info=new google.maps.InfoWindow({
-   content:`
-   <b>${d.razon}</b><br>
-   Código: ${d.codigo}<br>
-   Registro: ${d.registro}<br>
-   Distrito: ${d.distrito}<br>
-   Estado: ${d.estado}<br>
-   Última fiscalización: ${d.fiscalizacion}<br>
-   Dirección: ${d.direccion}<br>
-
-   <hr style="margin:6px 0;">
-   <b>Capacidades</b><br>
-   Capacidad total GLP: ${d.cap_total_glp_txt}<br>
-   Capacidad total CL: ${d.cap_total_cl_txt}<br>
-   GLP en cilindros: ${d.glp_cilindros_txt}<br>
-   Capacidad total GNV: ${d.cap_total_gnv_txt}<br>
-   <b>Capacidad total:</b> ${d.capacidad_total}<br>
-
-   <hr style="margin:6px 0;">
-   Latitud: ${d.lat}<br>
-   Longitud: ${d.lng}`
-  });
-
-  marker.addListener("click",()=>info.open(map,marker));
-  marcadores.push(marker);
+  let marker = L.marker([d.lat, d.lng], {icon: icono});
+  marker.bindPopup(contenidoPopup(d));
+  capaMarcadores.addLayer(marker);
  });
 }
 
-function ocultarMarcadores(){ marcadores.forEach(m=>m.setMap(null)); }
-function mostrarMarcadores(){ marcadores.forEach(m=>m.setMap(map)); }
+function mostrarMarcadores(){ if(!map.hasLayer(capaMarcadores)) map.addLayer(capaMarcadores); }
+function ocultarMarcadores(){ if(map.hasLayer(capaMarcadores)) map.removeLayer(capaMarcadores); }
+
+/* ===== HEATMAP ===== */
+function construirHeatmap(lista){
+ if(capaHeatmap){ map.removeLayer(capaHeatmap); capaHeatmap = null; }
+ if(!heatmapActivo) return;
+
+ let maxCap = Math.max(1, ...lista.map(d=>Number(d.capacidad_total)||1));
+
+ let puntos = lista.map(d=>[
+  d.lat, d.lng, Math.min(1, (Number(d.capacidad_total)||1) / maxCap)
+ ]);
+
+ capaHeatmap = L.heatLayer(puntos, {radius:22, blur:18, maxZoom:15}).addTo(map);
+}
+
+function toggleHeatmap(){
+ heatmapActivo = !heatmapActivo;
+ let btn = document.getElementById("btnHeatmap");
+ btn.classList.toggle("btn-on", heatmapActivo);
+ construirHeatmap(ultimaListaMostrada());
+}
+
+/* Guarda referencia de la última lista renderizada, para poder
+   reconstruir el heatmap al activarlo/desactivarlo sin recalcular filtros */
+let _ultimaLista = [];
+function ultimaListaMostrada(){ return _ultimaLista; }
+
+function renderizar(lista){
+ _ultimaLista = lista;
+ dibujarMarcadores(lista);
+ construirHeatmap(lista);
+}
 
 /* ===== FILTROS ===== */
 function cargarFiltros(){
  ["estado","actividad","provincia","distrito"].forEach(c=>{
-  let s=document.getElementById("f_"+c);
+  let s = document.getElementById("f_"+c);
   [...new Set(datos.map(d=>d[c]))].sort().forEach(v=>{
    if(v){
-    let o=document.createElement("option");
-    o.value=v;o.text=v;s.add(o);
+    let o = document.createElement("option");
+    o.value = v; o.text = v; s.add(o);
    }
   });
-  s.onchange=aplicarFiltros;
+  s.onchange = aplicarFiltros;
  });
 
- let s=document.getElementById("f_anio");
+ let s = document.getElementById("f_anio");
  [...new Set(datos.map(d=>d._anioFiscalizacion))]
   .filter(Boolean)
   .sort((a,b)=>b-a)
   .forEach(v=>{
-   let o=document.createElement("option");
-   o.value=v;o.text=v;s.add(o);
+   let o = document.createElement("option");
+   o.value = v; o.text = v; s.add(o);
   });
- s.onchange=aplicarFiltros;
+ s.onchange = aplicarFiltros;
 }
 
 function valores(id){
  return [...document.getElementById(id).selectedOptions].map(o=>o.value);
 }
 
-/* ===== APLICAR FILTROS ===== */
 function aplicarFiltros(){
+ modoBusqueda = false;
 
- modoBusqueda=false;
+ if(marcadorCoordenadas){ map.removeLayer(marcadorCoordenadas); marcadorCoordenadas = null; }
 
- if(marcadorCoordenadas){
-  marcadorCoordenadas.setMap(null);
-  marcadorCoordenadas=null;
- }
-
- const filtrosActivos =
-     valores("f_estado").length ||
-     valores("f_actividad").length ||
-     valores("f_provincia").length ||
-     valores("f_distrito").length ||
-     valores("f_anio").length;
-
- let f=datos.filter(d=>
-  (!valores("f_estado").length||valores("f_estado").includes(d.estado)) &&
-  (!valores("f_actividad").length||valores("f_actividad").includes(d.actividad)) &&
-  (!valores("f_provincia").length||valores("f_provincia").includes(d.provincia)) &&
-  (!valores("f_distrito").length||valores("f_distrito").includes(d.distrito)) &&
-  (!valores("f_anio").length||valores("f_anio").includes(d._anioFiscalizacion))
+ let f = datos.filter(d=>
+  (!valores("f_estado").length || valores("f_estado").includes(d.estado)) &&
+  (!valores("f_actividad").length || valores("f_actividad").includes(d.actividad)) &&
+  (!valores("f_provincia").length || valores("f_provincia").includes(d.provincia)) &&
+  (!valores("f_distrito").length || valores("f_distrito").includes(d.distrito)) &&
+  (!valores("f_anio").length || valores("f_anio").includes(d._anioFiscalizacion))
  );
 
- dibujarMarcadores(f);
+ renderizar(f);
 
- if(
-  valores("f_estado").length ||
-  valores("f_actividad").length ||
-  valores("f_provincia").length ||
-  valores("f_distrito").length ||
-  valores("f_anio").length
- ){
-  mostrarMarcadores();
- }else{
-  ocultarMarcadores();
- }
+ let hayFiltros =
+  valores("f_estado").length || valores("f_actividad").length ||
+  valores("f_provincia").length || valores("f_distrito").length ||
+  valores("f_anio").length;
 
- construirHeatmap(f);
+ if(hayFiltros){ mostrarMarcadores(); } else { ocultarMarcadores(); }
+
  actualizarContador(f);
  actualizarEstadisticas(f);
 
  let distSel = valores("f_distrito");
-
- if(distSel.length >= 1){
-  resaltarDistritos(distSel);
- }else{
-  limpiarResaltadoDistrito();
- }
+ if(distSel.length >= 1){ resaltarDistritos(distSel); } else { limpiarResaltadoDistrito(); }
 }
 
 /* ===== ESTADISTICAS ===== */
 function actualizarEstadisticas(lista){
- let panel=document.getElementById("panelStats");
- if(lista.length===datos.length){ panel.style.display="none"; return; }
- panel.style.display="block";
+ let panel = document.getElementById("panelStats");
+ if(lista.length === datos.length){ panel.style.display = "none"; return; }
+ panel.style.display = "block";
 
- let porAct={};
- lista.forEach(d=>porAct[d.actividad]=(porAct[d.actividad]||0)+1);
+ let porAct = {};
+ lista.forEach(d=>porAct[d.actividad] = (porAct[d.actividad]||0)+1);
+ let actividadesOrdenadas = Object.entries(porAct).sort((a,b)=>b[1]-a[1]);
 
- let actividadesOrdenadas = Object.entries(porAct)
-  .sort((a,b)=>b[1]-a[1]);
-
- let html="<b>📌 Por Actividad</b><br>";
+ let html = "<b>📌 Por Actividad</b><br>";
  actividadesOrdenadas.forEach(([act,cant])=>{
-  html+=`
-   <div>
-    <span class="color-box" style="background:${colorPorActividad(act)}"></span>
-    ${act}: ${cant}
-   </div>`;
+  html += `<div><span class="color-box" style="background:${colorPorActividad(act)}"></span>${act}: ${cant}</div>`;
  });
- document.getElementById("stats_actividad").innerHTML=html;
+ document.getElementById("stats_actividad").innerHTML = html;
 
- let porDist={};
- lista.forEach(d=>porDist[d.distrito]=(porDist[d.distrito]||0)+1);
+ let porDist = {};
+ lista.forEach(d=>porDist[d.distrito] = (porDist[d.distrito]||0)+1);
+ let distritosOrdenados = Object.entries(porDist).sort((a,b)=>b[1]-a[1]);
 
- let distritosOrdenados = Object.entries(porDist)
-  .sort((a,b)=>b[1]-a[1]);
+ let hd = "<br><b>🏘️ Por Distrito</b><br>";
+ hd += distritosOrdenados.map(([dist,cant])=>`${dist}: ${cant}`).join("<br>");
+ document.getElementById("stats_geo").innerHTML = hd;
 
- let hd="<br><b>🏘️ Por Distrito</b><br>";
- hd+=distritosOrdenados.map(([dist,cant])=>`${dist}: ${cant}`).join("<br>");
- document.getElementById("stats_geo").innerHTML=hd;
-
- document.getElementById("stats_total").innerHTML=
- `<br><b>Total general: ${lista.length}</b>`;
+ document.getElementById("stats_total").innerHTML = `<br><b>Total general: ${lista.length}</b>`;
 }
 
 /* ===== CONTADOR ===== */
 function actualizarContador(lista){
- document.getElementById("contador").innerHTML=
- "Total registros: <b>"+lista.length+"</b>";
+ document.getElementById("contador").innerHTML = "Total registros: <b>"+lista.length+"</b>";
 }
 
-/* ==========================================================
-   ✅ NUEVO: PARSEAR LISTA DE CÓDIGOS (POR SALTO DE LÍNEA O COMAS)
-   ========================================================== */
+/* ===== PARSEAR LISTA DE CÓDIGOS ===== */
 function obtenerListaCodigosDesdeTexto(texto){
  if(!texto) return [];
-
- let lista = texto
-  .split(/[\n,;]+/g)
-  .map(x=>String(x).trim())
-  .filter(x=>x.length>0);
-
+ let lista = texto.split(/[\n,;]+/g).map(x=>String(x).trim()).filter(x=>x.length>0);
  let vistos = new Set();
  let salida = [];
- lista.forEach(c=>{
-  if(!vistos.has(c)){
-   vistos.add(c);
-   salida.push(c);
-  }
- });
-
+ lista.forEach(c=>{ if(!vistos.has(c)){ vistos.add(c); salida.push(c); } });
  return salida;
 }
 
-/* ===== BUSCADOR (AHORA SOPORTA MULTI-CODIGO) ===== */
+/* ===== BUSCADOR (SOPORTA MULTI-CODIGO) ===== */
 function buscar(){
  let texto = document.getElementById("buscador").value.trim();
  if(!texto){ resetFiltros(); return; }
 
- if(marcadorCoordenadas){
-  marcadorCoordenadas.setMap(null);
-  marcadorCoordenadas=null;
- }
+ if(marcadorCoordenadas){ map.removeLayer(marcadorCoordenadas); marcadorCoordenadas = null; }
 
  const radioMetros = parseInt(document.getElementById("sliderDistancia").value);
 
  function clave(d){
-  return String(d.codigo || "") + "|" + String(d.registro || "") + "|" + String(d.lat) + "|" + String(d.lng);
+  return String(d.codigo||"")+"|"+String(d.registro||"")+"|"+String(d.lat)+"|"+String(d.lng);
  }
 
  let listaCodigos = obtenerListaCodigosDesdeTexto(texto);
  let esMultiCodigo = (listaCodigos.length >= 2);
-
  let coincidencias = [];
 
  if(esMultiCodigo){
   let setCodigos = new Set(listaCodigos.map(x=>String(x).toLowerCase()));
-
   coincidencias = datos.filter(d=>{
-   let cod = String(d.codigo || "").trim().toLowerCase();
+   let cod = String(d.codigo||"").trim().toLowerCase();
    return setCodigos.has(cod);
   });
-
  }else{
   let t = texto.toLowerCase();
-
   coincidencias = datos.filter(d=>
    String(d.codigo).toLowerCase().includes(t) ||
    String(d.razon).toLowerCase().includes(t) ||
-   String(d.direccion || "").toLowerCase().includes(t)
+   String(d.direccion||"").toLowerCase().includes(t)
   );
  }
 
- if(!coincidencias.length){
-  alert("No se encontraron coincidencias");
-  return;
- }
+ if(!coincidencias.length){ alert("No se encontraron coincidencias"); return; }
 
  let setIncluidos = new Map();
  coincidencias.forEach(d=>setIncluidos.set(clave(d), d));
 
  datos.forEach(d=>{
   if(d.lat == null || d.lng == null) return;
-
   for(let c of coincidencias){
    if(c.lat == null || c.lng == null) continue;
-
-   let dist = google.maps.geometry.spherical.computeDistanceBetween(
-    new google.maps.LatLng(d.lat, d.lng),
-    new google.maps.LatLng(c.lat, c.lng)
-   );
-
-   if(dist <= radioMetros){
-    setIncluidos.set(clave(d), d);
-    break;
-   }
+   let dist = L.latLng(d.lat,d.lng).distanceTo(L.latLng(c.lat,c.lng));
+   if(dist <= radioMetros){ setIncluidos.set(clave(d), d); break; }
   }
  });
 
  let r = Array.from(setIncluidos.values());
-
- dibujarMarcadores(r);
-
  let clavesCoin = new Set(coincidencias.map(d=>clave(d)));
 
- marcadores.forEach((marker, i)=>{
-  let d = r[i];
-  if(clavesCoin.has(clave(d))){
-   marker.setIcon(iconoPinRojo());
-  }
+ modoBusqueda = false; // usamos icono normal + resaltamos coincidencias aparte
+ capaMarcadores.clearLayers();
+ r.forEach(d=>{
+  let esCoincidencia = clavesCoin.has(clave(d));
+  let icono = esCoincidencia ? iconoPinRojo() : iconoActividad(d.actividad);
+  let marker = L.marker([d.lat, d.lng], {icon: icono});
+  marker.bindPopup(contenidoPopup(d));
+  capaMarcadores.addLayer(marker);
  });
+ _ultimaLista = r;
+ construirHeatmap(r);
 
  mostrarMarcadores();
- construirHeatmap(r);
  actualizarContador(r);
  actualizarEstadisticas(r);
 
- // ✅ NUEVO: resaltar distritos donde están los resultados
  resaltarDistritosDeResultados(coincidencias);
 
  if(esMultiCodigo && r.length > 1){
-  let bounds = new google.maps.LatLngBounds();
-  r.forEach(d=>{
-   bounds.extend(new google.maps.LatLng(d.lat, d.lng));
-  });
+  let bounds = L.latLngBounds(r.map(d=>[d.lat,d.lng]));
   map.fitBounds(bounds);
  }else{
-  map.setCenter({lat:coincidencias[0].lat,lng:coincidencias[0].lng});
-  map.setZoom(r.length==1?15:12);
+  map.setView([coincidencias[0].lat, coincidencias[0].lng], r.length==1 ? 15 : 12);
  }
 }
 
@@ -927,112 +736,115 @@ function buscar(){
    ========================================================== */
 function buscarCoordenadas(){
  let texto = document.getElementById("buscadorCoord").value.trim();
+ if(!texto){ alert("Ingresa coordenadas. Ejemplo: -12.0464, -77.0428"); return; }
 
- if(!texto){
-  alert("Ingresa coordenadas. Ejemplo: -12.0464, -77.0428");
-  return;
- }
-
- texto = texto.replace(/\s+/g, "");
+ texto = texto.replace(/\s+/g,"");
  let partes = texto.split(",");
-
- if(partes.length !== 2){
-  alert("Formato inválido. Usa: -12.0464, -77.0428");
-  return;
- }
+ if(partes.length !== 2){ alert("Formato inválido. Usa: -12.0464, -77.0428"); return; }
 
  let lat = parseFloat(partes[0]);
  let lng = parseFloat(partes[1]);
+ if(isNaN(lat) || isNaN(lng)){ alert("Coordenadas inválidas. Usa números. Ej: -12.0464, -77.0428"); return; }
+ if(lat < -90 || lat > 90 || lng < -180 || lng > 180){ alert("Coordenadas fuera de rango."); return; }
 
- if(isNaN(lat) || isNaN(lng)){
-  alert("Coordenadas inválidas. Usa números. Ej: -12.0464, -77.0428");
-  return;
- }
-
- if(lat < -90 || lat > 90 || lng < -180 || lng > 180){
-  alert("Coordenadas fuera de rango.");
-  return;
- }
-
- modoBusqueda=false;
-
- if(marcadorCoordenadas){
-  marcadorCoordenadas.setMap(null);
-  marcadorCoordenadas=null;
- }
-
+ modoBusqueda = false;
+ if(marcadorCoordenadas){ map.removeLayer(marcadorCoordenadas); marcadorCoordenadas = null; }
  limpiarResaltadoDistrito();
 
- const punto = new google.maps.LatLng(lat, lng);
+ const punto = L.latLng(lat, lng);
+ marcadorCoordenadas = L.marker(punto, {icon: iconoPuntoAzul()}).addTo(map).bindPopup("Punto buscado");
 
- marcadorCoordenadas = new google.maps.Marker({
-  position: punto,
-  map: map,
-  icon: iconoPuntoAzul(),
-  title: "Punto buscado"
- });
-
- map.setCenter({lat:lat, lng:lng});
- map.setZoom(14);
+ map.setView(punto, 14);
 
  const radioMetros = parseInt(document.getElementById("sliderDistancia").value);
 
  let cercanos = datos.filter(d=>{
   if(d.lat == null || d.lng == null) return false;
-
-  let dist = google.maps.geometry.spherical.computeDistanceBetween(
-   punto,
-   new google.maps.LatLng(d.lat, d.lng)
-  );
-
-  return dist <= radioMetros;
+  return punto.distanceTo(L.latLng(d.lat,d.lng)) <= radioMetros;
  });
 
  if(!cercanos.length){
-  dibujarMarcadores([]);
+  renderizar([]);
   ocultarMarcadores();
-  construirHeatmap([]);
   actualizarContador([]);
-  document.getElementById("panelStats").style.display="none";
+  document.getElementById("panelStats").style.display = "none";
   limpiarResaltadoDistrito();
   return;
  }
 
- dibujarMarcadores(cercanos);
+ renderizar(cercanos);
  mostrarMarcadores();
- construirHeatmap(cercanos);
  actualizarContador(cercanos);
  actualizarEstadisticas(cercanos);
-
- // ✅ NUEVO: resaltar distritos donde están los resultados
  resaltarDistritosDeResultados(cercanos);
 }
 
 /* ===== RESET ===== */
 function resetFiltros(){
- modoBusqueda=false;
-
- if(marcadorCoordenadas){
-  marcadorCoordenadas.setMap(null);
-  marcadorCoordenadas=null;
- }
-
+ modoBusqueda = false;
+ if(marcadorCoordenadas){ map.removeLayer(marcadorCoordenadas); marcadorCoordenadas = null; }
  limpiarResaltadoDistrito();
 
- document.querySelectorAll("select").forEach(s=>s.selectedIndex=-1);
- dibujarMarcadores(datos);
- construirHeatmap(datos);
+ document.querySelectorAll(".panelFiltros select").forEach(s=>s.selectedIndex=-1);
+ document.getElementById("buscador").value = "";
+
+ renderizar(datos);
  actualizarContador(datos);
- document.getElementById("panelStats").style.display="none";
+ document.getElementById("panelStats").style.display = "none";
  ocultarMarcadores();
 }
-</script>
 
-<script async defer
-src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBArnvT9F_nd7CszX3fM0LtcKxLrpJo0fA&libraries=visualization,geometry&callback=initMap">
+/* ==========================================================
+   📊 ESTADO DE LOS DATOS (caché en backend / Google Sheets)
+   ========================================================== */
+function formatoRelativo(segundos){
+ if(segundos < 60) return "hace instantes";
+ if(segundos < 3600) return `hace ${Math.floor(segundos/60)} min`;
+ if(segundos < 86400) return `hace ${Math.floor(segundos/3600)} h`;
+ return `hace ${Math.floor(segundos/86400)} d`;
+}
+
+function cargarEstadoDatos(){
+ fetch("/estado").then(r=>r.json()).then(e=>{
+  let el = document.getElementById("estadoDatos");
+  let texto;
+  if(e.last_update){
+   let seg = (Date.now()/1000) - e.last_update;
+   texto = `📡 Datos actualizados ${formatoRelativo(seg)} (${e.total} registros)`;
+  }else{
+   texto = "⚠️ Aún no se pudo cargar la fuente de datos.";
+  }
+  if(e.last_error){
+   texto += `<br><span style="color:#c0392b;">Aviso: ${e.last_error}</span>`;
+  }
+  el.innerHTML = texto + `<br><button onclick="actualizarDatosAhora()">🔄 Actualizar datos ahora</button>`;
+ }).catch(()=>{});
+}
+
+function actualizarDatosAhora(){
+ let el = document.getElementById("estadoDatos");
+ el.innerHTML = "Actualizando...";
+ fetch("/actualizar", {method:"POST"})
+  .then(r=>r.json())
+  .then(()=>{
+   // recarga los datos en el mapa con lo último disponible
+   fetch("/datos").then(r=>r.json()).then(d=>{
+    datos = d.map(x=>{
+     if(x.fiscalizacion){
+      const match = String(x.fiscalizacion).match(/\b(19|20)\d{2}\b/);
+      x._anioFiscalizacion = match ? match[0] : null;
+     }
+     return x;
+    });
+    resetFiltros();
+    cargarEstadoDatos();
+   });
+  })
+  .catch(()=>{ cargarEstadoDatos(); });
+}
+
+initMap();
 </script>
 
 </body>
 </html>
-
-

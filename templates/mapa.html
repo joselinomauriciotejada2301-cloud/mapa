@@ -131,6 +131,24 @@ html, body { height:100%; margin:0; font-family:Arial, sans-serif; }
  box-shadow:0 0 3px rgba(0,0,0,.5);
 }
 
+/* Etiqueta con el nombre del distrito resaltado */
+.etiqueta-distrito{
+ background: rgba(255,255,255,.92);
+ border: 1px solid #999;
+ border-radius: 4px;
+ padding: 2px 6px;
+ font-weight: bold;
+ font-size: 12px;
+ color: #222;
+ box-shadow: 0 1px 3px rgba(0,0,0,.3);
+}
+.etiqueta-distrito::before{ display:none; } /* oculta la flechita del tooltip */
+
+/* Botón de zoom reubicado, para no chocar con los paneles */
+.leaflet-control-zoom{
+ margin-bottom: 10px !important;
+}
+
 /* ===== RESPONSIVE ===== */
 @media(max-width:900px){
  .panelFiltros{ left:10px; top:340px; right:10px; }
@@ -427,6 +445,15 @@ function resaltarDistritos(listaDistritos){
     fillColor: color,
     fillOpacity: features.length === 1 ? 0.15 : 0.08
    };
+  },
+  onEachFeature: (feature, layer)=>{
+   let nombre = (feature.properties && feature.properties.nombdist || "").toString().trim();
+   if(!nombre) return;
+   layer.bindTooltip(nombre, {
+    permanent: true,
+    direction: "center",
+    className: "etiqueta-distrito"
+   });
   }
  }).addTo(map);
 
@@ -456,7 +483,10 @@ function resaltarDistritosDeResultados(listaResultados){
    🗺️ MAPA
    ========================================================== */
 function initMap(){
- map = L.map("map", { preferCanvas:true }).setView([-12.05, -77.05], 11);
+ map = L.map("map", { preferCanvas:true, zoomControl:false }).setView([-12.05, -77.05], 11);
+
+ // Botón +/- movido abajo a la izquierda, para no chocar con el panel de búsqueda
+ L.control.zoom({ position: "bottomleft" }).addTo(map);
 
  // Teselas gratuitas, sin API key ni facturación (CARTO Voyager sobre OpenStreetMap)
  L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
@@ -507,7 +537,12 @@ function contenidoPopup(d){
   <b>Capacidad total:</b> ${d.capacidad_total}<br>
   <hr style="margin:6px 0;">
   Latitud: ${d.lat}<br>
-  Longitud: ${d.lng}`;
+  Longitud: ${d.lng}<br>
+  <a href="https://www.google.com/maps?q=${d.lat},${d.lng}" target="_blank" rel="noopener"
+     style="display:inline-block;margin-top:6px;padding:4px 8px;background:#1a73e8;color:white;
+     text-decoration:none;border-radius:4px;font-size:12px;">
+   📍 Abrir en Google Maps
+  </a>`;
 }
 
 /* ===== MARCADORES ===== */
@@ -752,7 +787,14 @@ function buscarCoordenadas(){
  limpiarResaltadoDistrito();
 
  const punto = L.latLng(lat, lng);
- marcadorCoordenadas = L.marker(punto, {icon: iconoPuntoAzul()}).addTo(map).bindPopup("Punto buscado");
+ marcadorCoordenadas = L.marker(punto, {icon: iconoPuntoAzul()}).addTo(map).bindPopup(
+  `Punto buscado<br>
+   <a href="https://www.google.com/maps?q=${lat},${lng}" target="_blank" rel="noopener"
+      style="display:inline-block;margin-top:6px;padding:4px 8px;background:#1a73e8;color:white;
+      text-decoration:none;border-radius:4px;font-size:12px;">
+    📍 Abrir en Google Maps
+   </a>`
+ );
 
  map.setView(punto, 14);
 

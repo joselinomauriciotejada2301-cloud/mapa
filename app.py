@@ -112,14 +112,14 @@ def _procesar_dataframe(df):
         "Capacidad total de GLP": "cap_total_glp",
         "Capacidad total GLP": "cap_total_glp",
 
-        "Capacidad total CL": "cap_total_cl",
-        "Capacidad total de CL": "cap_total_cl",
+        "Capacidad total Gasoholes": "cap_total_gasoholes",
+        "Capacidad total de Gasoholes": "cap_total_gasoholes",
 
         "GLP en cilindros": "glp_cilindros",
         "GLP cilindros": "glp_cilindros",
 
-        "Capacidad total GNV": "cap_total_gnv",
-        "Capacidad total de GNV": "cap_total_gnv",
+        "Capacidad total Diesel": "cap_total_diesel",
+        "Capacidad total de Diesel": "cap_total_diesel",
 
         "Dirección": "direccion",
     })
@@ -127,25 +127,25 @@ def _procesar_dataframe(df):
     df["lat"] = pd.to_numeric(df.get("lat"), errors="coerce")
     df["lng"] = pd.to_numeric(df.get("lng"), errors="coerce")
 
-    for col in ["cap_total_glp", "cap_total_cl", "glp_cilindros", "cap_total_gnv"]:
+    for col in ["cap_total_glp", "cap_total_gasoholes", "glp_cilindros", "cap_total_diesel"]:
         if col not in df.columns:
             df[col] = ""
 
     df["cap_total_glp_txt"] = df["cap_total_glp"].apply(texto_bonito)
-    df["cap_total_cl_txt"] = df["cap_total_cl"].apply(texto_bonito)
+    df["cap_total_gasoholes_txt"] = df["cap_total_gasoholes"].apply(texto_bonito)
     df["glp_cilindros_txt"] = df["glp_cilindros"].apply(texto_bonito)
-    df["cap_total_gnv_txt"] = df["cap_total_gnv"].apply(texto_bonito)
+    df["cap_total_diesel_txt"] = df["cap_total_diesel"].apply(texto_bonito)
 
     df["cap_total_glp"] = df["cap_total_glp"].apply(extraer_numero)
-    df["cap_total_cl"] = df["cap_total_cl"].apply(extraer_numero)
+    df["cap_total_gasoholes"] = df["cap_total_gasoholes"].apply(extraer_numero)
     df["glp_cilindros"] = df["glp_cilindros"].apply(extraer_numero)
-    df["cap_total_gnv"] = df["cap_total_gnv"].apply(extraer_numero)
+    df["cap_total_diesel"] = df["cap_total_diesel"].apply(extraer_numero)
 
     df["capacidad_total"] = (
         df["cap_total_glp"]
-        + df["cap_total_cl"]
+        + df["cap_total_gasoholes"]
         + df["glp_cilindros"]
-        + df["cap_total_gnv"]
+        + df["cap_total_diesel"]
     )
     df["capacidad_total"] = df["capacidad_total"].fillna(0)
     df.loc[df["capacidad_total"] <= 0, "capacidad_total"] = 1
